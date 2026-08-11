@@ -1,0 +1,6 @@
+# Markdown docs stay local (plan + learning docs are not tracked)
+*.md
+learning-docs/
+
+# macOS
+.DS_Store
