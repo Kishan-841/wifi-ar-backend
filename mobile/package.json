@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@reactvision/react-viro": "^2.57.5",
     "expo": "~57.0.12",
     "expo-dev-client": "~57.0.11",
     "expo-status-bar": "~57.0.1",
