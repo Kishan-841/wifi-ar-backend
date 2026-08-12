@@ -1,73 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PermissionsAndroid, StyleSheet, Text, View } from 'react-native';
+import { ViroARSceneNavigator } from '@reactvision/react-viro';
+
 import {
-  ViroARScene,
-  ViroARSceneNavigator,
-  ViroTrackingReason,
-  ViroTrackingStateConstants,
-} from '@reactvision/react-viro';
-
+  Pose,
+  PoseTrackerScene,
+  TrackingInfo,
+  TrackingState,
+} from '../components/ArPoseSource';
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
-
-/** How often the AR pose is allowed to update React state (native side is ~60fps). */
-const POSE_UPDATE_MS = 200;
-
-type Pose = { x: number; y: number; z: number };
-
-type TrackingInfo = {
-  state: 'INITIALIZING' | 'TRACKING' | 'LIMITED' | 'UNAVAILABLE';
-  reason: string;
-};
-
-/**
- * The AR scene itself. Renders nothing visible — it exists to receive
- * camera-transform and tracking callbacks from ARCore via Viro.
- */
-function PoseTrackerScene(props: any) {
-  const appProps =
-    props.sceneNavigator?.viroAppProps ?? props.arSceneNavigator?.viroAppProps ?? {};
-  const lastSent = useRef(0);
-
-  return (
-    <ViroARScene
-      onTrackingUpdated={(state: any, reason: ViroTrackingReason) => {
-        appProps.onTracking?.(mapTrackingState(state), mapTrackingReason(reason));
-      }}
-      onCameraTransformUpdate={(transform: any) => {
-        const now = Date.now();
-        if (now - lastSent.current < POSE_UPDATE_MS) return;
-        lastSent.current = now;
-        const [x, y, z] = transform.position;
-        appProps.onPose?.({ x, y, z });
-      }}
-    />
-  );
-}
-
-function mapTrackingState(state: any): TrackingInfo['state'] {
-  switch (state) {
-    case ViroTrackingStateConstants.TRACKING_NORMAL:
-      return 'TRACKING';
-    case ViroTrackingStateConstants.TRACKING_LIMITED:
-      return 'LIMITED';
-    case ViroTrackingStateConstants.TRACKING_UNAVAILABLE:
-      return 'UNAVAILABLE';
-    default:
-      return 'INITIALIZING';
-  }
-}
-
-function mapTrackingReason(reason: any): string {
-  // Numeric constants from Viro: 1 = none, 2 = excessive motion, 3 = insufficient features
-  switch (reason) {
-    case 2:
-      return 'moving too fast';
-    case 3:
-      return 'not enough visual features';
-    default:
-      return 'none';
-  }
-}
 
 export default function ArScreen() {
   const [permission, setPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
@@ -97,7 +38,7 @@ export default function ArScreen() {
     setUpdateCount((n) => n + 1);
   }, []);
 
-  const onTracking = useCallback((state: TrackingInfo['state'], reason: string) => {
+  const onTracking = useCallback((state: TrackingState, reason: string) => {
     setTracking({ state, reason });
   }, []);
 

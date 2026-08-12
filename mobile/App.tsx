@@ -4,9 +4,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from './components/DebugUI';
 import ArScreen from './screens/ArScreen';
+import MeasureScreen from './screens/MeasureScreen';
 import WifiScreen from './screens/WifiScreen';
 
-type Tab = 'wifi' | 'ar';
+type Tab = 'wifi' | 'ar' | 'measure';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('wifi');
@@ -18,10 +19,15 @@ export default function App() {
         <View style={styles.tabs}>
           <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
           <TabButton label="AR" active={tab === 'ar'} onPress={() => setTab('ar')} />
+          <TabButton
+            label="Measure"
+            active={tab === 'measure'}
+            onPress={() => setTab('measure')}
+          />
         </View>
       </View>
 
-      {tab === 'wifi' ? <WifiScreen /> : <ArScreen />}
+      {tab === 'wifi' ? <WifiScreen /> : tab === 'ar' ? <ArScreen /> : <MeasureScreen />}
       <StatusBar style="light" />
     </View>
   );
