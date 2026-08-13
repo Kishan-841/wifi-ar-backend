@@ -9,11 +9,16 @@ import {
   TrackingState,
 } from '../components/ArPoseSource';
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
 import { Measurement, assessMeasurement, buildMeasurement } from '../lib/measurement';
+import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
+import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
 
-/** One measurement attempt every 2s — matches the Wi-Fi poll cadence of Phase 1. */
+/** One measurement point is recorded per tick (median RSSI + freshest pose). */
 const MEASURE_INTERVAL_MS = 2000;
+/** Don't record until the median rests on at least this many samples. */
+const MIN_SAMPLES = 3;
 
 export default function MeasureScreen() {
   const [permission, setPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
@@ -21,16 +26,19 @@ export default function MeasureScreen() {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [rejected, setRejected] = useState(0);
   const [lastReason, setLastReason] = useState<string | null>(null);
+  const [filtered, setFiltered] = useState<FilteredRssi | null>(null);
+  const [gridSummary, setGridSummary] = useState<GridSummary | null>(null);
   const [tracking, setTracking] = useState<TrackingInfo>({
     state: 'INITIALIZING',
     reason: 'none',
   });
 
-  // Latest pose lives in a ref: it updates 5×/s and the 2s ticker just reads
-  // the freshest value — no re-render needed for every pose update here.
   const poseRef = useRef<Pose | null>(null);
   const trackingRef = useRef<TrackingState>('INITIALIZING');
   const runningRef = useRef(false);
+  const samplerRef = useRef(new RssiSampler());
+  const lastWifiRef = useRef<WifiReading | null>(null);
+  const gridRef = useRef(new Map<string, GridCell>());
 
   useEffect(() => {
     PermissionsAndroid.requestMultiple([
@@ -42,31 +50,54 @@ export default function MeasureScreen() {
     });
   }, []);
 
+  // Fast loop: keep the rolling RSSI buffer fed while measuring.
+  useEffect(() => {
+    if (!running) return;
+    const sampleTimer = setInterval(async () => {
+      try {
+        const wifi = await WifiInfoModule.getWifiInfo();
+        lastWifiRef.current = wifi;
+        samplerRef.current.add(wifi);
+        setFiltered(samplerRef.current.current());
+      } catch {
+        // Sampling errors surface via the record tick's rejection reason.
+      }
+    }, SAMPLE_INTERVAL_MS);
+    return () => clearInterval(sampleTimer);
+  }, [running]);
+
+  // Slow loop: record one filtered measurement point per tick.
   useEffect(() => {
     runningRef.current = running;
     if (!running) return;
 
-    const tick = async () => {
+    const tick = () => {
       if (!runningRef.current) return;
-      try {
-        const wifi = await WifiInfoModule.getWifiInfo();
-        const pose = poseRef.current;
-        const trackingState = trackingRef.current;
-        const verdict = assessMeasurement(wifi, pose, trackingState);
-        if (verdict.record) {
-          setMeasurements((list) => [...list, buildMeasurement(wifi, pose!, trackingState)]);
-          setLastReason(null);
-        } else {
-          setRejected((n) => n + 1);
-          setLastReason(verdict.reason);
-        }
-      } catch (e) {
+      const wifi = lastWifiRef.current;
+      const pose = poseRef.current;
+      const trackingState = trackingRef.current;
+      const median = samplerRef.current.current();
+
+      const verdict = assessMeasurement(wifi, pose, trackingState);
+      if (!verdict.record) {
         setRejected((n) => n + 1);
-        setLastReason(String(e));
+        setLastReason(verdict.reason);
+        return;
       }
+      if (!median || median.sampleCount < MIN_SAMPLES) {
+        setRejected((n) => n + 1);
+        setLastReason(`warming up (${median?.sampleCount ?? 0}/${MIN_SAMPLES} samples)`);
+        return;
+      }
+
+      // Record: identity from the raw reading, RSSI from the median filter.
+      const m = buildMeasurement({ ...wifi!, rssi: median.rssi }, pose!, trackingState);
+      setMeasurements((list) => [...list, m]);
+      addToGrid(gridRef.current, m);
+      setGridSummary(summarizeGrid(gridRef.current));
+      setLastReason(null);
     };
 
-    tick();
     const timer = setInterval(tick, MEASURE_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [running]);
@@ -80,6 +111,46 @@ export default function MeasureScreen() {
     setTracking({ state, reason });
   }, []);
 
+  const dumpDataset = useCallback(() => {
+    const cells = Array.from(gridRef.current.entries()).map(([key, c]) => ({
+      key,
+      cx: c.cx,
+      cz: c.cz,
+      n: c.rssiValues.length,
+      medianRssi: c.medianRssi,
+      minRssi: c.minRssi,
+      maxRssi: c.maxRssi,
+      suspectCount: c.suspectCount,
+    }));
+    // One tagged line so it is easy to find and parse from the Metro log.
+    console.log('WIFIAR_DATASET ' + JSON.stringify({ measurements, cells }));
+  }, [measurements]);
+
+  const clearAll = useCallback(() => {
+    setMeasurements([]);
+    setRejected(0);
+    setLastReason(null);
+    setFiltered(null);
+    setGridSummary(null);
+    samplerRef.current.reset();
+    gridRef.current.clear();
+  }, []);
+
+  const startStop = useCallback(() => {
+    if (running) {
+      setRunning(false);
+      // Camera unmounts now — AR session ends, its origin is gone.
+      poseRef.current = null;
+      trackingRef.current = 'INITIALIZING';
+      setTracking({ state: 'INITIALIZING', reason: 'none' });
+      return;
+    }
+    // Each start is a NEW AR session with a NEW origin — old points would
+    // live in a different coordinate system, so a fresh scan starts clean.
+    clearAll();
+    setRunning(true);
+  }, [running, clearAll]);
+
   if (permission !== 'granted') {
     return (
       <View style={styles.permissionContainer}>
@@ -89,48 +160,65 @@ export default function MeasureScreen() {
   }
 
   const latest = measurements[measurements.length - 1];
-  const suspectCount = measurements.filter((m) => m.trackingQuality !== 'TRACKING').length;
 
   return (
     <View style={styles.container}>
-      <ViroARSceneNavigator
-        autofocus
-        initialScene={{ scene: PoseTrackerScene as any }}
-        viroAppProps={{ onPose, onTracking }}
-        style={styles.arView}
-      />
+      {running ? (
+        <ViroARSceneNavigator
+          autofocus
+          initialScene={{ scene: PoseTrackerScene as any }}
+          viroAppProps={{ onPose, onTracking }}
+          style={styles.arView}
+        />
+      ) : (
+        <View style={styles.cameraOff}>
+          <Text style={styles.cameraOffText}>
+            Camera off — battery saver.{'\n'}Start measuring to activate AR tracking.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={[ui.card, styles.overlayCard]}>
           <Row label="Tracking" value={tracking.state} />
-          <Row label="Recorded" value={`${measurements.length} (${suspectCount} suspect)`} big />
+          <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
           <Row label="Rejected" value={String(rejected)} />
           {lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
 
+          {filtered && (
+            <Row
+              label="RSSI median (live)"
+              value={`${filtered.rssi} dBm  (±${filtered.spread}, n=${filtered.sampleCount})`}
+            />
+          )}
           {latest && (
+            <Row
+              label="Latest point"
+              value={`(${latest.x.toFixed(1)}, ${latest.z.toFixed(1)})  ${latest.rssi} dBm`}
+            />
+          )}
+          {gridSummary && gridSummary.cells > 0 && (
             <>
               <Row
-                label="Latest"
-                value={`(${latest.x.toFixed(1)}, ${latest.y.toFixed(1)}, ${latest.z.toFixed(1)}) m`}
+                label="Best / worst cell"
+                value={`${gridSummary.strongest} / ${gridSummary.weakest} dBm`}
               />
-              <Row label="RSSI @ position" value={`${latest.rssi} dBm`} />
-              <Row label="AP" value={latest.bssid} />
+              <Row label="Worst in-cell spread" value={`${gridSummary.worstCellSpread} dB`} />
             </>
           )}
 
           <Button
-            label={running ? 'Stop measuring' : 'Start measuring'}
-            onPress={() => setRunning((r) => !r)}
+            label={running ? 'Stop measuring' : 'Start new scan'}
+            onPress={startStop}
           />
           {!running && measurements.length > 0 && (
-            <Button
-              label="Clear measurements"
-              onPress={() => {
-                setMeasurements([]);
-                setRejected(0);
-                setLastReason(null);
-              }}
-            />
+            <>
+              <Text style={styles.reasonText}>
+                Starting again begins a fresh scan — dump this dataset first to keep it.
+              </Text>
+              <Button label="Dump dataset to logs" onPress={dumpDataset} />
+              <Button label="Clear measurements" onPress={clearAll} />
+            </>
           )}
         </View>
 
@@ -165,6 +253,18 @@ const styles = StyleSheet.create({
   arView: {
     flex: 1,
   },
+  cameraOff: {
+    flex: 1,
+    backgroundColor: '#0b1d2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraOffText: {
+    color: '#546e7a',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
   overlay: {
     position: 'absolute',
     top: 0,
@@ -183,7 +283,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   list: {
-    maxHeight: 180,
+    maxHeight: 160,
     marginTop: 8,
     backgroundColor: 'rgba(11, 29, 42, 0.92)',
     borderRadius: 8,

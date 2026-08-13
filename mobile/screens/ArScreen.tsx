@@ -12,6 +12,7 @@ import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
 
 export default function ArScreen() {
   const [permission, setPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [active, setActive] = useState(false);
   const [pose, setPose] = useState<Pose | null>(null);
   const [tracking, setTracking] = useState<TrackingInfo>({
     state: 'INITIALIZING',
@@ -19,6 +20,18 @@ export default function ArScreen() {
   });
   const [updateCount, setUpdateCount] = useState(0);
   const [sessionKey, setSessionKey] = useState(1);
+
+  const toggleActive = () => {
+    if (active) {
+      setActive(false);
+      setPose(null);
+      setUpdateCount(0);
+      setTracking({ state: 'INITIALIZING', reason: 'none' });
+    } else {
+      setSessionKey((k) => k + 1);
+      setActive(true);
+    }
+  };
 
   const requestPermission = useCallback(async () => {
     const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
@@ -64,26 +77,44 @@ export default function ArScreen() {
 
   return (
     <View style={styles.container}>
-      <ViroARSceneNavigator
-        key={sessionKey}
-        autofocus
-        initialScene={{ scene: PoseTrackerScene as any }}
-        viroAppProps={{ onPose, onTracking }}
-        style={styles.arView}
-      />
+      {active ? (
+        <ViroARSceneNavigator
+          key={sessionKey}
+          autofocus
+          initialScene={{ scene: PoseTrackerScene as any }}
+          viroAppProps={{ onPose, onTracking }}
+          style={styles.arView}
+        />
+      ) : (
+        <View style={styles.cameraOff}>
+          <Text style={styles.cameraOffText}>
+            Camera off — battery saver.{'\n'}Start AR to activate tracking.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={[ui.card, styles.overlayCard]}>
-          <Row label="Tracking" value={tracking.state} big />
-          {tracking.state !== 'TRACKING' && tracking.reason !== 'none' && (
-            <Text style={styles.reasonText}>Reason: {tracking.reason}</Text>
+          {active && (
+            <>
+              <Row label="Tracking" value={tracking.state} big />
+              {tracking.state !== 'TRACKING' && tracking.reason !== 'none' && (
+                <Text style={styles.reasonText}>Reason: {tracking.reason}</Text>
+              )}
+              <Row label="X (right)" value={pose ? `${pose.x.toFixed(2)} m` : '—'} />
+              <Row label="Y (up)" value={pose ? `${pose.y.toFixed(2)} m` : '—'} />
+              <Row label="Z (back)" value={pose ? `${pose.z.toFixed(2)} m` : '—'} />
+              <Row
+                label="Dist. from origin"
+                value={pose ? `${horizontalDist.toFixed(2)} m` : '—'}
+              />
+              <Row label="Pose updates" value={String(updateCount)} />
+            </>
           )}
-          <Row label="X (right)" value={pose ? `${pose.x.toFixed(2)} m` : '—'} />
-          <Row label="Y (up)" value={pose ? `${pose.y.toFixed(2)} m` : '—'} />
-          <Row label="Z (back)" value={pose ? `${pose.z.toFixed(2)} m` : '—'} />
-          <Row label="Dist. from origin" value={pose ? `${horizontalDist.toFixed(2)} m` : '—'} />
-          <Row label="Pose updates" value={String(updateCount)} />
-          <Button label="Restart AR session" onPress={() => setSessionKey((k) => k + 1)} />
+          <Button label={active ? 'Stop AR' : 'Start AR'} onPress={toggleActive} />
+          {active && (
+            <Button label="Restart AR session" onPress={() => setSessionKey((k) => k + 1)} />
+          )}
         </View>
       </View>
     </View>
@@ -101,6 +132,18 @@ const styles = StyleSheet.create({
   },
   arView: {
     flex: 1,
+  },
+  cameraOff: {
+    flex: 1,
+    backgroundColor: '#0b1d2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraOffText: {
+    color: '#546e7a',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   overlay: {
     position: 'absolute',
