@@ -9,6 +9,7 @@ import {
   TrackingState,
 } from '../components/ArPoseSource';
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import GridMap from '../components/GridMap';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
 import { Measurement, assessMeasurement, buildMeasurement } from '../lib/measurement';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
@@ -28,6 +29,8 @@ export default function MeasureScreen() {
   const [lastReason, setLastReason] = useState<string | null>(null);
   const [filtered, setFiltered] = useState<FilteredRssi | null>(null);
   const [gridSummary, setGridSummary] = useState<GridSummary | null>(null);
+  const [cells, setCells] = useState<GridCell[]>([]);
+  const [livePose, setLivePose] = useState<Pose | null>(null);
   const [tracking, setTracking] = useState<TrackingInfo>({
     state: 'INITIALIZING',
     reason: 'none',
@@ -95,6 +98,7 @@ export default function MeasureScreen() {
       setMeasurements((list) => [...list, m]);
       addToGrid(gridRef.current, m);
       setGridSummary(summarizeGrid(gridRef.current));
+      setCells(Array.from(gridRef.current.values()));
       setLastReason(null);
     };
 
@@ -104,6 +108,8 @@ export default function MeasureScreen() {
 
   const onPose = useCallback((p: Pose) => {
     poseRef.current = p;
+    // Already throttled to 5/s at the source — cheap enough for the live dot.
+    setLivePose(p);
   }, []);
 
   const onTracking = useCallback((state: TrackingState, reason: string) => {
@@ -132,6 +138,7 @@ export default function MeasureScreen() {
     setLastReason(null);
     setFiltered(null);
     setGridSummary(null);
+    setCells([]);
     samplerRef.current.reset();
     gridRef.current.clear();
   }, []);
@@ -141,6 +148,7 @@ export default function MeasureScreen() {
       setRunning(false);
       // Camera unmounts now — AR session ends, its origin is gone.
       poseRef.current = null;
+      setLivePose(null);
       trackingRef.current = 'INITIALIZING';
       setTracking({ state: 'INITIALIZING', reason: 'none' });
       return;
@@ -179,6 +187,12 @@ export default function MeasureScreen() {
       )}
 
       <View style={styles.overlay} pointerEvents="box-none">
+        {running && cells.length > 0 && (
+          <View style={styles.miniMapPanel}>
+            <GridMap cells={cells} currentPose={livePose} height={150} />
+          </View>
+        )}
+
         <View style={[ui.card, styles.overlayCard]}>
           <Row label="Tracking" value={tracking.state} />
           <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
@@ -221,6 +235,12 @@ export default function MeasureScreen() {
             </>
           )}
         </View>
+
+        {!running && cells.length > 0 && (
+          <View style={styles.fullMapPanel}>
+            <GridMap cells={cells} height={240} showLegend />
+          </View>
+        )}
 
         {!running && measurements.length > 0 && (
           <ScrollView style={styles.list}>
@@ -282,8 +302,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginVertical: 4,
   },
+  miniMapPanel: {
+    backgroundColor: 'rgba(11, 29, 42, 0.85)',
+    borderRadius: 8,
+    padding: 6,
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  fullMapPanel: {
+    backgroundColor: 'rgba(11, 29, 42, 0.92)',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+  },
   list: {
-    maxHeight: 160,
+    maxHeight: 120,
     marginTop: 8,
     backgroundColor: 'rgba(11, 29, 42, 0.92)',
     borderRadius: 8,
