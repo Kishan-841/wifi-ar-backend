@@ -63,11 +63,11 @@ export default function WifiScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {error && <Banner color="#b71c1c" text={`Native module error: ${error}`} />}
+        {error && <Banner color={theme.danger} text={`Native module error: ${error}`} />}
 
         {permission !== 'granted' && (
           <Banner
-            color="#e65100"
+            color={theme.warn}
             text={
               permission === 'blocked'
                 ? 'Location permission permanently denied — enable it in system settings.'
@@ -83,16 +83,16 @@ export default function WifiScreen() {
         )}
         {reading && !reading.locationEnabled && (
           <Banner
-            color="#e65100"
+            color={theme.warn}
             text="System location services are OFF — Android redacts SSID/BSSID."
           />
         )}
         {reading && !reading.wifiConnected && (
-          <Banner color="#b71c1c" text="Not connected to Wi-Fi." />
+          <Banner color={theme.danger} text="Not connected to Wi-Fi." />
         )}
         {redacted && reading?.wifiConnected && (
           <Banner
-            color="#e65100"
+            color={theme.warn}
             text="Readings are redacted by Android (permission or location services)."
           />
         )}
@@ -132,7 +132,7 @@ export default function WifiScreen() {
             return (
               <View
                 key={band.label}
-                style={[styles.rangeRow, active && { backgroundColor: 'rgba(109, 79, 196, 0.16)' }]}
+                style={[styles.rangeRow, active && { backgroundColor: 'rgba(37, 99, 235, 0.14)' }]}
               >
                 <View style={[styles.rangeSwatch, { backgroundColor: band.color }]} />
                 <Text

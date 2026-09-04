@@ -2,10 +2,10 @@ import { ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 /**
- * Theme tokens. The heatmap band colors (green→red) are SEMANTIC and live in
- * lib/heatmapColor.ts — they never change with the theme. The theme is the
- * quiet stage those colors perform on: violet, because radio waves sit just
- * past violet on the spectrum, and because violet collides with no band color.
+ * Theme tokens — Electric Blue + Cyan identity (user-specified palette).
+ * Primary #2563EB drives actions (buttons, active tab); cyan is the secondary
+ * accent for highlighted values and details. The Wi-Fi strength band colors
+ * are SEMANTIC and live in lib/heatmapColor.ts — identical in both modes.
  */
 
 export type Theme = {
@@ -18,44 +18,50 @@ export type Theme = {
   text: string;
   muted: string;
   border: string;
+  /** Secondary accent (cyan) — highlighted values, live numbers. */
   accent: string;
-  /** Primary action background (same brand violet in both modes). */
+  /** Primary action color (electric blue) — buttons, active tab. */
   primary: string;
   danger: string;
   success: string;
   warn: string;
+  info: string;
 };
 
 const dark: Theme = {
   mode: 'dark',
-  bg: '#141021',
-  card: '#1d1731',
-  overlayCard: 'rgba(29, 23, 49, 0.93)',
-  inputBg: '#141021',
-  text: '#f4f1fb',
-  muted: '#a49ac2',
-  border: '#322a4d',
-  accent: '#a78bfa',
-  primary: '#6d4fc4',
-  danger: '#c62839',
-  success: '#1b5e20',
-  warn: '#e65100',
+  bg: '#0B1220',
+  card: '#151f36',
+  overlayCard: 'rgba(21, 31, 54, 0.93)',
+  inputBg: '#0B1220',
+  text: '#f1f5f9',
+  muted: '#94a3b8',
+  border: '#293650',
+  accent: '#06B6D4',
+  primary: '#2563EB',
+  danger: '#dc2626',
+  success: '#15803d',
+  warn: '#ea580c',
+  info: '#475569',
 };
 
 const light: Theme = {
   mode: 'light',
-  bg: '#f5f3fa',
+  bg: '#F8FAFC',
   card: '#ffffff',
   overlayCard: 'rgba(255, 255, 255, 0.94)',
-  inputBg: '#efecf7',
-  text: '#251f3d',
-  muted: '#6f678c',
-  border: '#e5e0f0',
-  accent: '#6d4fc4',
-  primary: '#6d4fc4',
-  danger: '#c62839',
-  success: '#2e7d32',
-  warn: '#e65100',
+  inputBg: '#eef2f7',
+  text: '#0f172a',
+  muted: '#64748b',
+  border: '#e2e8f0',
+  // Cyan-700 rather than raw #06B6D4: cyan-500 text on white fails contrast;
+  // the brand cyan still appears in chips/dots where contrast permits.
+  accent: '#0E7490',
+  primary: '#2563EB',
+  danger: '#dc2626',
+  success: '#16a34a',
+  warn: '#ea580c',
+  info: '#64748b',
 };
 
 const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({

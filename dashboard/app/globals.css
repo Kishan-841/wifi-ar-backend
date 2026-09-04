@@ -1,9 +1,23 @@
 :root {
-  --bg: #0b1d2a;
-  --card: #122b3d;
-  --accent: #4fc3f7;
-  --muted: #90a4ae;
-  --text: #eceff1;
+  --bg: #F8FAFC;
+  --card: #ffffff;
+  --accent: #0E7490;
+  --primary: #2563EB;
+  --muted: #64748b;
+  --text: #0f172a;
+  --border: #e2e8f0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B1220;
+    --card: #151f36;
+    --accent: #06B6D4;
+    --primary: #2563EB;
+    --muted: #94a3b8;
+    --text: #f1f5f9;
+    --border: #293650;
+  }
 }
 
 * {
@@ -24,7 +38,7 @@ body {
 }
 
 h1 {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 a {
@@ -111,7 +125,7 @@ a {
 .roomTable td {
   text-align: left;
   padding: 8px 12px;
-  border-bottom: 1px solid #1e3a4f;
+  border-bottom: 1px solid var(--border);
 }
 
 .roomTable th {

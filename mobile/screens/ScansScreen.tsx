@@ -90,9 +90,9 @@ export default function ScansScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <Button label="Refresh" variant="ghost" loading={loading} onPress={refresh} />
-      {error && <Banner color="#b71c1c" text={error} />}
+      {error && <Banner color={theme.danger} text={error} />}
       {scans?.length === 0 && (
-        <Banner color="#37474f" text="No scans saved yet — upload one from the Measure tab." />
+        <Banner color={theme.info} text="No scans saved yet — upload one from the Measure tab." />
       )}
       {scans?.map((s, i) => (
         <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>

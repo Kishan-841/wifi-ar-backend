@@ -224,7 +224,7 @@ export default function MeasureScreen() {
   if (permission !== 'granted') {
     return (
       <View style={styles.permissionContainer}>
-        <Banner color="#e65100" text="Camera + location permissions are required to measure." />
+        <Banner color={theme.warn} text="Camera + location permissions are required to measure." />
       </View>
     );
   }
@@ -307,7 +307,7 @@ export default function MeasureScreen() {
                 Starting again begins a fresh scan — upload or dump this one first to keep it.
               </Text>
               {upload.state === 'done' ? (
-                <Banner color="#1b5e20" text={`Uploaded ✓  scan ${upload.id.slice(0, 8)}…`} />
+                <Banner color={theme.success} text={`Uploaded ✓  scan ${upload.id.slice(0, 8)}…`} />
               ) : (
                 <Button
                   label="Upload scan to server"
@@ -315,7 +315,7 @@ export default function MeasureScreen() {
                   onPress={doUpload}
                 />
               )}
-              {upload.state === 'error' && <Banner color="#b71c1c" text={upload.message} />}
+              {upload.state === 'error' && <Banner color={theme.danger} text={upload.message} />}
               <Button label="Dump dataset to logs" variant="ghost" onPress={dumpDataset} />
               <Button label="Clear measurements" variant="ghost" onPress={clearAll} />
             </>

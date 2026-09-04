@@ -7,12 +7,12 @@ import type { Measurement } from './scans';
 export const CELL_SIZE_M = 0.5; // keep in sync with mobile/lib/grid.ts
 
 export const RSSI_BANDS = [
-  { min: -50, color: '#2e7d32', label: 'Excellent' },
-  { min: -58, color: '#7cb342', label: 'Good' },
-  { min: -66, color: '#fdd835', label: 'Fair' },
-  { min: -74, color: '#fb8c00', label: 'Weak' },
-  { min: -82, color: '#e53935', label: 'Poor' },
-  { min: -Infinity, color: '#7b1a1a', label: 'Unusable' },
+  { min: -50, color: '#22C55E', label: 'Excellent' },
+  { min: -58, color: '#84CC16', label: 'Good' },
+  { min: -66, color: '#F59E0B', label: 'Fair' },
+  { min: -74, color: '#F97316', label: 'Weak' },
+  { min: -82, color: '#EF4444', label: 'Very weak' },
+  { min: -Infinity, color: '#991B1B', label: 'Unusable' },
 ];
 
 export function rssiToColor(rssi: number): string {

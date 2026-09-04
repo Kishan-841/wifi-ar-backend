@@ -61,7 +61,7 @@ export default function ArScreen() {
     return (
       <View style={styles.permissionContainer}>
         <Banner
-          color="#e65100"
+          color={theme.warn}
           text={
             permission === 'denied'
               ? 'Camera permission denied — AR cannot start without it.'
