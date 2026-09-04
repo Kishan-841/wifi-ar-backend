@@ -132,7 +132,7 @@ export default function WifiScreen() {
             return (
               <View
                 key={band.label}
-                style={[styles.rangeRow, active && { backgroundColor: 'rgba(37, 99, 235, 0.14)' }]}
+                style={[styles.rangeRow, active && { backgroundColor: 'rgba(16, 185, 129, 0.14)' }]}
               >
                 <View style={[styles.rangeSwatch, { backgroundColor: band.color }]} />
                 <Text

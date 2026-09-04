@@ -2,9 +2,10 @@ import { ReactNode, createContext, useContext, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 /**
- * Theme tokens — Electric Blue + Cyan identity (user-specified palette).
- * Primary #2563EB drives actions (buttons, active tab); cyan is the secondary
- * accent for highlighted values and details. The Wi-Fi strength band colors
+ * Theme tokens — Emerald identity (user-specified palette: #10B981 primary,
+ * #34D399 secondary, #059669 dark shade, #6EE7B7 highlight).
+ * Primary drives actions (buttons, active tab); the highlight/dark shades act
+ * as the accent for highlighted values, per mode. The Wi-Fi strength band colors
  * are SEMANTIC and live in lib/heatmapColor.ts — identical in both modes.
  */
 
@@ -30,15 +31,15 @@ export type Theme = {
 
 const dark: Theme = {
   mode: 'dark',
-  bg: '#0B1220',
-  card: '#151f36',
-  overlayCard: 'rgba(21, 31, 54, 0.93)',
-  inputBg: '#0B1220',
-  text: '#f1f5f9',
-  muted: '#94a3b8',
-  border: '#293650',
-  accent: '#06B6D4',
-  primary: '#2563EB',
+  bg: '#0B1512',
+  card: '#13241c',
+  overlayCard: 'rgba(19, 36, 28, 0.93)',
+  inputBg: '#0B1512',
+  text: '#f0f7f2',
+  muted: '#8fa89b',
+  border: '#22402f',
+  accent: '#6EE7B7',
+  primary: '#10B981',
   danger: '#dc2626',
   success: '#15803d',
   warn: '#ea580c',
@@ -47,17 +48,17 @@ const dark: Theme = {
 
 const light: Theme = {
   mode: 'light',
-  bg: '#F8FAFC',
+  bg: '#F6FBF8',
   card: '#ffffff',
   overlayCard: 'rgba(255, 255, 255, 0.94)',
-  inputBg: '#eef2f7',
-  text: '#0f172a',
-  muted: '#64748b',
-  border: '#e2e8f0',
-  // Cyan-700 rather than raw #06B6D4: cyan-500 text on white fails contrast;
-  // the brand cyan still appears in chips/dots where contrast permits.
-  accent: '#0E7490',
-  primary: '#2563EB',
+  inputBg: '#eaf4ee',
+  text: '#132920',
+  muted: '#5f7268',
+  border: '#dcebe2',
+  // Emerald-600 for text accents: the brighter brand shades fail contrast on
+  // white; #34D399/#6EE7B7 still appear in dots/chips where contrast permits.
+  accent: '#059669',
+  primary: '#10B981',
   danger: '#dc2626',
   success: '#16a34a',
   warn: '#ea580c',
