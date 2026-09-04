@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { ViroARSceneNavigator } from '@reactvision/react-viro';
 
+import { PulseDot } from '../components/anim';
 import {
   Pose,
   PoseTrackerScene,
@@ -253,6 +254,12 @@ export default function MeasureScreen() {
         )}
 
         <View style={[ui.card, styles.overlayCard]}>
+          {running && (
+            <View style={styles.recordingRow}>
+              <PulseDot />
+              <Text style={styles.recordingText}>Recording</Text>
+            </View>
+          )}
           <Row label="Tracking" value={tracking.state} />
           {running && <Row label="Current room" value={currentRoom ?? '(untagged)'} />}
           <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
@@ -289,6 +296,7 @@ export default function MeasureScreen() {
           )}
           <Button
             label={running ? 'Stop measuring' : 'Start new scan'}
+            variant={running ? 'danger' : 'primary'}
             onPress={startStop}
           />
           {!running && measurements.length > 0 && (
@@ -300,13 +308,14 @@ export default function MeasureScreen() {
                 <Banner color="#1b5e20" text={`Uploaded ✓  scan ${upload.id.slice(0, 8)}…`} />
               ) : (
                 <Button
-                  label={upload.state === 'sending' ? 'Uploading…' : 'Upload scan to server'}
+                  label="Upload scan to server"
+                  loading={upload.state === 'sending'}
                   onPress={doUpload}
                 />
               )}
               {upload.state === 'error' && <Banner color="#b71c1c" text={upload.message} />}
-              <Button label="Dump dataset to logs" onPress={dumpDataset} />
-              <Button label="Clear measurements" onPress={clearAll} />
+              <Button label="Dump dataset to logs" variant="ghost" onPress={dumpDataset} />
+              <Button label="Clear measurements" variant="ghost" onPress={clearAll} />
             </>
           )}
         </View>
@@ -365,7 +374,7 @@ export default function MeasureScreen() {
               onSubmitEditing={confirmRoom}
             />
             <Button label="Set room" onPress={confirmRoom} />
-            <Button label="Cancel" onPress={() => setRoomModalVisible(false)} />
+            <Button label="Cancel" variant="ghost" onPress={() => setRoomModalVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -408,6 +417,17 @@ const styles = StyleSheet.create({
   },
   overlayCard: {
     opacity: 0.92,
+  },
+  recordingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  recordingText: {
+    color: '#ef9a9a',
+    fontSize: 13,
+    fontWeight: '600',
   },
   reasonText: {
     color: '#ffb74d',

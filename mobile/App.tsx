@@ -1,7 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { PressableScale } from './components/anim';
 import { palette } from './components/DebugUI';
 import ArScreen from './screens/ArScreen';
 import MeasureScreen from './screens/MeasureScreen';
@@ -53,9 +54,9 @@ function TabButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
+    <PressableScale style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
       <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 

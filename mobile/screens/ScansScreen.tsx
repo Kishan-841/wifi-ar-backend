@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FadeSlideIn, PressableScale } from '../components/anim';
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import { ScanDetail, ScanSummary, getScan, listScans } from '../lib/api';
@@ -41,6 +42,14 @@ export default function ScansScreen() {
     }
   }, []);
 
+  if (loading && !selected) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color="#4fc3f7" size="large" />
+      </View>
+    );
+  }
+
   if (selected) {
     const grid = new Map<string, GridCell>();
     for (const m of selected.measurements) addToGrid(grid, m);
@@ -51,7 +60,7 @@ export default function ScansScreen() {
 
     return (
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Button label="← Back to scans" onPress={() => setSelected(null)} />
+        <Button label="← Back to scans" variant="ghost" onPress={() => setSelected(null)} />
         <View style={ui.card}>
           <Row label="Network" value={selected.ssid ?? '—'} />
           <Row label="When" value={new Date(selected.startedAt).toLocaleString()} />
@@ -78,20 +87,20 @@ export default function ScansScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Button label={loading ? 'Loading…' : 'Refresh'} onPress={refresh} />
+      <Button label="Refresh" variant="ghost" loading={loading} onPress={refresh} />
       {error && <Banner color="#b71c1c" text={error} />}
       {scans?.length === 0 && (
         <Banner color="#37474f" text="No scans saved yet — upload one from the Measure tab." />
       )}
-      {scans?.map((s) => (
-        <Pressable key={s.id} onPress={() => openScan(s.id)}>
-          <View style={[ui.card, styles.scanCard]}>
+      {scans?.map((s, i) => (
+        <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>
+          <PressableScale onPress={() => openScan(s.id)} style={[ui.card, styles.scanCard]}>
             <Text style={styles.scanTitle}>{s.ssid ?? 'Unknown network'}</Text>
             <Text style={styles.scanMeta}>
               {new Date(s.startedAt).toLocaleString()}   {s.measurementCount} points
             </Text>
-          </View>
-        </Pressable>
+          </PressableScale>
+        </FadeSlideIn>
       ))}
     </ScrollView>
   );
@@ -101,6 +110,11 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 20,
     paddingBottom: 40,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scanCard: {
     marginTop: 10,

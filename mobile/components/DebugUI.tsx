@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+
+import { FadeSlideIn, PressableScale } from './anim';
 
 export function Row({ label, value, big }: { label: string; value: string; big?: boolean }) {
   return (
@@ -11,17 +13,37 @@ export function Row({ label, value, big }: { label: string; value: string; big?:
 
 export function Banner({ color, text }: { color: string; text: string }) {
   return (
-    <View style={[styles.banner, { backgroundColor: color }]}>
+    <FadeSlideIn style={[styles.banner, { backgroundColor: color }]}>
       <Text style={styles.bannerText}>{text}</Text>
-    </View>
+    </FadeSlideIn>
   );
 }
 
-export function Button({ label, onPress }: { label: string; onPress: () => void }) {
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  loading,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  variant?: 'primary' | 'ghost' | 'danger';
+  loading?: boolean;
+  disabled?: boolean;
+}) {
   return (
-    <Pressable style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+    <PressableScale
+      onPress={loading ? undefined : onPress}
+      disabled={disabled || loading}
+      style={[styles.button, styles[variant]]}
+    >
+      {loading ? (
+        <ActivityIndicator color="#ffffff" size="small" />
+      ) : (
+        <Text style={[styles.buttonText, variant === 'ghost' && styles.ghostText]}>{label}</Text>
+      )}
+    </PressableScale>
   );
 }
 
@@ -57,8 +79,8 @@ export const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   rowValueBig: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     color: palette.accent,
   },
   banner: {
@@ -71,14 +93,31 @@ export const styles = StyleSheet.create({
     fontSize: 13,
   },
   button: {
-    backgroundColor: '#1565c0',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
     marginTop: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  primary: {
+    backgroundColor: '#1565c0',
+  },
+  danger: {
+    backgroundColor: '#b71c1c',
+  },
+  ghost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#2a4a63',
   },
   buttonText: {
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  ghostText: {
+    color: palette.muted,
   },
 });
