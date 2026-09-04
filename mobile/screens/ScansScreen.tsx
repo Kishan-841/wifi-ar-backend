@@ -2,13 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FadeSlideIn, PressableScale } from '../components/anim';
-import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { Banner, Button, Row, card } from '../components/DebugUI';
+import { useTheme } from '../components/theme';
 import GridMap from '../components/GridMap';
 import { ScanDetail, ScanSummary, getScan, listScans } from '../lib/api';
 import { GridCell, addToGrid } from '../lib/grid';
 import { summarizeRooms } from '../lib/measurement';
 
 export default function ScansScreen() {
+  const { theme } = useTheme();
   const [scans, setScans] = useState<ScanSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScanDetail | null>(null);
@@ -45,7 +47,7 @@ export default function ScansScreen() {
   if (loading && !selected) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#4fc3f7" size="large" />
+        <ActivityIndicator color={theme.accent} size="large" />
       </View>
     );
   }
@@ -61,18 +63,18 @@ export default function ScansScreen() {
     return (
       <ScrollView contentContainerStyle={styles.scroll}>
         <Button label="← Back to scans" variant="ghost" onPress={() => setSelected(null)} />
-        <View style={ui.card}>
+        <View style={card(theme)}>
           <Row label="Network" value={selected.ssid ?? '—'} />
           <Row label="When" value={new Date(selected.startedAt).toLocaleString()} />
           <Row label="Duration" value={`${durationS}s`} />
           <Row label="Points / cells" value={`${selected.measurements.length} / ${cells.length}`} />
         </View>
 
-        <View style={ui.card}>
+        <View style={card(theme)}>
           <GridMap cells={cells} height={260} showLegend />
         </View>
 
-        <View style={ui.card}>
+        <View style={card(theme)}>
           {summarizeRooms(selected.measurements).map((r) => (
             <Row
               key={r.room}
@@ -94,9 +96,9 @@ export default function ScansScreen() {
       )}
       {scans?.map((s, i) => (
         <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>
-          <PressableScale onPress={() => openScan(s.id)} style={[ui.card, styles.scanCard]}>
-            <Text style={styles.scanTitle}>{s.ssid ?? 'Unknown network'}</Text>
-            <Text style={styles.scanMeta}>
+          <PressableScale onPress={() => openScan(s.id)} style={[card(theme), styles.scanCard]}>
+            <Text style={[styles.scanTitle, { color: theme.accent }]}>{s.ssid ?? 'Unknown network'}</Text>
+            <Text style={[styles.scanMeta, { color: theme.muted }]}>
               {new Date(s.startedAt).toLocaleString()}   {s.measurementCount} points
             </Text>
           </PressableScale>
@@ -120,12 +122,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   scanTitle: {
-    color: '#4fc3f7',
     fontSize: 16,
     fontWeight: '600',
   },
   scanMeta: {
-    color: '#90a4ae',
     fontSize: 12,
     marginTop: 4,
   },

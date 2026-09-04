@@ -1,20 +1,30 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 import { FadeSlideIn, PressableScale } from './anim';
+import { useTheme } from './theme';
 
 export function Row({ label, value, big }: { label: string; value: string; big?: boolean }) {
+  const { theme } = useTheme();
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, big && styles.rowValueBig]}>{value}</Text>
+    <View style={layout.row}>
+      <Text style={[layout.rowLabel, { color: theme.muted }]}>{label}</Text>
+      <Text
+        style={[
+          layout.rowValue,
+          { color: theme.text },
+          big && [layout.rowValueBig, { color: theme.accent }],
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
 export function Banner({ color, text }: { color: string; text: string }) {
   return (
-    <FadeSlideIn style={[styles.banner, { backgroundColor: color }]}>
-      <Text style={styles.bannerText}>{text}</Text>
+    <FadeSlideIn style={[layout.banner, { backgroundColor: color }]}>
+      <Text style={layout.bannerText}>{text}</Text>
     </FadeSlideIn>
   );
 }
@@ -32,37 +42,42 @@ export function Button({
   loading?: boolean;
   disabled?: boolean;
 }) {
+  const { theme } = useTheme();
+  const variantStyle: ViewStyle =
+    variant === 'primary'
+      ? { backgroundColor: theme.primary }
+      : variant === 'danger'
+        ? { backgroundColor: theme.danger }
+        : { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border };
+  const textColor = variant === 'ghost' ? theme.muted : '#ffffff';
+
   return (
     <PressableScale
       onPress={loading ? undefined : onPress}
       disabled={disabled || loading}
-      style={[styles.button, styles[variant]]}
+      style={[layout.button, variantStyle]}
     >
       {loading ? (
-        <ActivityIndicator color="#ffffff" size="small" />
+        <ActivityIndicator color={variant === 'ghost' ? theme.accent : '#ffffff'} size="small" />
       ) : (
-        <Text style={[styles.buttonText, variant === 'ghost' && styles.ghostText]}>{label}</Text>
+        <Text style={[layout.buttonText, { color: textColor }]}>{label}</Text>
       )}
     </PressableScale>
   );
 }
 
-export const palette = {
-  bg: '#0b1d2a',
-  card: '#122b3d',
-  accent: '#4fc3f7',
-  muted: '#90a4ae',
-  warn: '#e65100',
-  error: '#b71c1c',
-};
-
-export const styles = StyleSheet.create({
-  card: {
-    backgroundColor: palette.card,
+/** Themed card style — use as: <View style={[card(theme)]}> */
+export function card(theme: { card: string }): ViewStyle {
+  return {
+    backgroundColor: theme.card,
     borderRadius: 12,
     padding: 16,
     marginTop: 16,
-  },
+  };
+}
+
+/** Color-free layout constants shared across screens. */
+export const layout = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -70,18 +85,15 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   rowLabel: {
-    color: palette.muted,
     fontSize: 14,
   },
   rowValue: {
-    color: '#ffffff',
     fontSize: 14,
     fontVariant: ['tabular-nums'],
   },
   rowValueBig: {
     fontSize: 24,
     fontWeight: '700',
-    color: palette.accent,
   },
   banner: {
     borderRadius: 8,
@@ -101,23 +113,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 46,
   },
-  primary: {
-    backgroundColor: '#1565c0',
-  },
-  danger: {
-    backgroundColor: '#b71c1c',
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#2a4a63',
-  },
   buttonText: {
-    color: '#ffffff',
     fontWeight: '600',
     fontSize: 15,
-  },
-  ghostText: {
-    color: palette.muted,
   },
 });

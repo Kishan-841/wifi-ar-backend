@@ -8,9 +8,11 @@ import {
   TrackingInfo,
   TrackingState,
 } from '../components/ArPoseSource';
-import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { Banner, Button, Row, card } from '../components/DebugUI';
+import { useTheme } from '../components/theme';
 
 export default function ArScreen() {
+  const { theme } = useTheme();
   const [permission, setPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [active, setActive] = useState(false);
   const [pose, setPose] = useState<Pose | null>(null);
@@ -86,15 +88,15 @@ export default function ArScreen() {
           style={styles.arView}
         />
       ) : (
-        <View style={styles.cameraOff}>
-          <Text style={styles.cameraOffText}>
+        <View style={[styles.cameraOff, { backgroundColor: theme.bg }]}>
+          <Text style={[styles.cameraOffText, { color: theme.muted }]}>
             Camera off — battery saver.{'\n'}Start AR to activate tracking.
           </Text>
         </View>
       )}
 
       <View style={styles.overlay} pointerEvents="box-none">
-        <View style={[ui.card, styles.overlayCard]}>
+        <View style={[card(theme), { backgroundColor: theme.overlayCard, marginTop: 0 }]}>
           {active && (
             <>
               <Row label="Tracking" value={tracking.state} big />
@@ -135,12 +137,10 @@ const styles = StyleSheet.create({
   },
   cameraOff: {
     flex: 1,
-    backgroundColor: '#0b1d2a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cameraOffText: {
-    color: '#546e7a',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
@@ -153,9 +153,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'flex-end',
     padding: 12,
-  },
-  overlayCard: {
-    opacity: 0.92,
   },
   reasonText: {
     color: '#ffb74d',

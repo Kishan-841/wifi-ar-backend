@@ -17,8 +17,9 @@ import {
   TrackingInfo,
   TrackingState,
 } from '../components/ArPoseSource';
-import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { Banner, Button, Row, card } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
+import { useTheme } from '../components/theme';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
 import { uploadScan } from '../lib/api';
 import {
@@ -37,6 +38,7 @@ const MEASURE_INTERVAL_MS = 2000;
 const MIN_SAMPLES = 3;
 
 export default function MeasureScreen() {
+  const { theme } = useTheme();
   const [permission, setPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
   const [running, setRunning] = useState(false);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -239,8 +241,8 @@ export default function MeasureScreen() {
           style={styles.arView}
         />
       ) : (
-        <View style={styles.cameraOff}>
-          <Text style={styles.cameraOffText}>
+        <View style={[styles.cameraOff, { backgroundColor: theme.bg }]}>
+          <Text style={[styles.cameraOffText, { color: theme.muted }]}>
             Camera off — battery saver.{'\n'}Start measuring to activate AR tracking.
           </Text>
         </View>
@@ -248,12 +250,12 @@ export default function MeasureScreen() {
 
       <View style={styles.overlay} pointerEvents="box-none">
         {running && cells.length > 0 && (
-          <View style={styles.miniMapPanel}>
+          <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
             <GridMap cells={cells} currentPose={livePose} height={150} />
           </View>
         )}
 
-        <View style={[ui.card, styles.overlayCard]}>
+        <View style={[card(theme), { backgroundColor: theme.overlayCard, marginTop: 0 }]}>
           {running && (
             <View style={styles.recordingRow}>
               <PulseDot />
@@ -321,17 +323,17 @@ export default function MeasureScreen() {
         </View>
 
         {!running && cells.length > 0 && (
-          <View style={styles.fullMapPanel}>
+          <View style={[styles.fullMapPanel, { backgroundColor: theme.overlayCard }]}>
             <GridMap cells={cells} height={240} showLegend />
           </View>
         )}
 
         {!running && measurements.length > 0 && (
-          <View style={styles.roomStatsPanel}>
+          <View style={[styles.roomStatsPanel, { backgroundColor: theme.overlayCard }]}>
             {summarizeRooms(measurements).map((r) => (
               <View key={r.room} style={styles.roomStatsRow}>
-                <Text style={styles.roomStatsName}>{r.room}</Text>
-                <Text style={styles.roomStatsValue}>
+                <Text style={[styles.roomStatsName, { color: theme.accent }]}>{r.room}</Text>
+                <Text style={[styles.roomStatsValue, { color: theme.text }]}>
                   {r.points} pts   median {r.medianRssi} dBm   ({r.minRssi}…{r.maxRssi})
                 </Text>
               </View>
@@ -340,12 +342,12 @@ export default function MeasureScreen() {
         )}
 
         {!running && measurements.length > 0 && (
-          <ScrollView style={styles.list}>
+          <ScrollView style={[styles.list, { backgroundColor: theme.overlayCard }]}>
             {measurements
               .slice(-30)
               .reverse()
               .map((m) => (
-                <Text key={m.timestamp} style={styles.listRow}>
+                <Text key={m.timestamp} style={[styles.listRow, { color: theme.muted }]}>
                   {new Date(m.timestamp).toLocaleTimeString()}  ({m.x.toFixed(1)},{' '}
                   {m.y.toFixed(1)}, {m.z.toFixed(1)})  {m.rssi} dBm
                   {m.trackingQuality !== 'TRACKING' ? '  ⚠' : ''}
@@ -362,14 +364,14 @@ export default function MeasureScreen() {
         onRequestClose={() => setRoomModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Which room are you entering?</Text>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Which room are you entering?</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: theme.inputBg, color: theme.text }]}
               value={roomDraft}
               onChangeText={setRoomDraft}
               placeholder="e.g. Bedroom"
-              placeholderTextColor="#546e7a"
+              placeholderTextColor={theme.muted}
               autoFocus
               onSubmitEditing={confirmRoom}
             />
@@ -396,12 +398,10 @@ const styles = StyleSheet.create({
   },
   cameraOff: {
     flex: 1,
-    backgroundColor: '#0b1d2a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cameraOffText: {
-    color: '#546e7a',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
@@ -414,9 +414,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'flex-end',
     padding: 12,
-  },
-  overlayCard: {
-    opacity: 0.92,
   },
   recordingRow: {
     flexDirection: 'row',
@@ -435,20 +432,17 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   miniMapPanel: {
-    backgroundColor: 'rgba(11, 29, 42, 0.85)',
     borderRadius: 8,
     padding: 6,
     marginBottom: 8,
     alignSelf: 'center',
   },
   fullMapPanel: {
-    backgroundColor: 'rgba(11, 29, 42, 0.92)',
     borderRadius: 8,
     padding: 10,
     marginTop: 8,
   },
   roomStatsPanel: {
-    backgroundColor: 'rgba(11, 29, 42, 0.92)',
     borderRadius: 8,
     padding: 10,
     marginTop: 8,
@@ -459,12 +453,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   roomStatsName: {
-    color: '#4fc3f7',
     fontSize: 12,
     fontWeight: '600',
   },
   roomStatsValue: {
-    color: '#cfd8dc',
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
@@ -475,20 +467,16 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   modalCard: {
-    backgroundColor: '#122b3d',
     borderRadius: 12,
     padding: 16,
   },
   modalTitle: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 10,
   },
   modalInput: {
-    backgroundColor: '#0b1d2a',
     borderRadius: 8,
-    color: '#ffffff',
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 15,
@@ -496,12 +484,10 @@ const styles = StyleSheet.create({
   list: {
     maxHeight: 120,
     marginTop: 8,
-    backgroundColor: 'rgba(11, 29, 42, 0.92)',
     borderRadius: 8,
     padding: 8,
   },
   listRow: {
-    color: '#cfd8dc',
     fontSize: 11,
     fontVariant: ['tabular-nums'],
     paddingVertical: 1,

@@ -4,6 +4,7 @@ import type { GridCell } from '../lib/grid';
 import { CELL_SIZE_M } from '../lib/grid';
 import { RSSI_BANDS, rssiToColor } from '../lib/heatmapColor';
 import type { Pose } from './ArPoseSource';
+import { useTheme } from './theme';
 
 /**
  * Top-down 2D map of the scanned grid. Plain colored Views — deliberately no
@@ -46,10 +47,11 @@ function roomCentroids(cells: GridCell[]): { room: string; cx: number; cz: numbe
 }
 
 export default function GridMap({ cells, currentPose, height, showLegend }: Props) {
+  const { theme } = useTheme();
   if (cells.length === 0) {
     return (
       <View style={[styles.container, { height }]}>
-        <Text style={styles.emptyText}>No cells yet — walk around while scanning.</Text>
+        <Text style={[styles.emptyText, { color: theme.muted }]}>No cells yet — walk around while scanning.</Text>
       </View>
     );
   }
@@ -133,7 +135,7 @@ export default function GridMap({ cells, currentPose, height, showLegend }: Prop
           {RSSI_BANDS.slice(0, 5).map((b) => (
             <View key={b.label} style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: b.color }]} />
-              <Text style={styles.legendText}>{b.min > -100 ? `≥${b.min}` : '<−82'}</Text>
+              <Text style={[styles.legendText, { color: theme.muted }]}>{b.min > -100 ? `≥${b.min}` : '<−82'}</Text>
             </View>
           ))}
         </View>
@@ -148,7 +150,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    color: '#546e7a',
     fontSize: 12,
   },
   roomLabel: {
@@ -166,7 +167,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#29b6f6',
+    backgroundColor: '#7c5cd6',
     borderWidth: 2,
     borderColor: '#ffffff',
   },
@@ -186,7 +187,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   legendText: {
-    color: '#90a4ae',
     fontSize: 10,
     fontVariant: ['tabular-nums'],
   },

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, PermissionsAndroid, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { Banner, Button, Row, card, layout } from '../components/DebugUI';
+import { useTheme } from '../components/theme';
 import { RSSI_BANDS, bandRangeText, rssiBandOf } from '../lib/heatmapColor';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
 import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
@@ -11,6 +12,7 @@ const POLL_INTERVAL_MS = 2000;
 type PermissionState = 'unknown' | 'granted' | 'denied' | 'blocked';
 
 export default function WifiScreen() {
+  const { theme } = useTheme();
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [reading, setReading] = useState<WifiReading | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,13 +97,13 @@ export default function WifiScreen() {
           />
         )}
 
-        <View style={ui.card}>
+        <View style={card(theme)}>
           <Row label="SSID" value={reading?.ssid ?? '—'} />
           <Row label="BSSID" value={reading?.bssid ?? '—'} />
           <Row label="RSSI" value={reading?.rssi != null ? `${reading.rssi} dBm` : '—'} big />
           {reading?.rssi != null && (
             <View style={styles.qualityRow}>
-              <Text style={ui.rowLabel}>Signal quality</Text>
+              <Text style={[layout.rowLabel, { color: theme.muted }]}>Signal quality</Text>
               <View
                 style={[styles.qualityChip, { backgroundColor: rssiBandOf(reading.rssi).color }]}
               >
@@ -123,17 +125,32 @@ export default function WifiScreen() {
           />
         </View>
 
-        <View style={ui.card}>
-          <Text style={styles.rangesTitle}>Signal strength ranges</Text>
+        <View style={card(theme)}>
+          <Text style={[styles.rangesTitle, { color: theme.muted }]}>Signal strength ranges</Text>
           {RSSI_BANDS.map((band, i) => {
             const active = reading?.rssi != null && rssiBandOf(reading.rssi) === band;
             return (
-              <View key={band.label} style={[styles.rangeRow, active && styles.rangeRowActive]}>
+              <View
+                key={band.label}
+                style={[styles.rangeRow, active && { backgroundColor: 'rgba(109, 79, 196, 0.16)' }]}
+              >
                 <View style={[styles.rangeSwatch, { backgroundColor: band.color }]} />
-                <Text style={[styles.rangeLabel, active && styles.rangeTextActive]}>
+                <Text
+                  style={[
+                    styles.rangeLabel,
+                    { color: active ? theme.text : theme.muted },
+                    active && styles.rangeTextActive,
+                  ]}
+                >
                   {band.label}
                 </Text>
-                <Text style={[styles.rangeValue, active && styles.rangeTextActive]}>
+                <Text
+                  style={[
+                    styles.rangeValue,
+                    { color: active ? theme.text : theme.muted },
+                    active && styles.rangeTextActive,
+                  ]}
+                >
                   {bandRangeText(i)}
                 </Text>
               </View>
@@ -141,7 +158,7 @@ export default function WifiScreen() {
           })}
         </View>
 
-        <View style={ui.card}>
+        <View style={card(theme)}>
           <Row label="API source" value={reading?.source ?? '—'} />
           <Row label="Permission" value={permission} />
           <Row label="Location services" value={reading ? String(reading.locationEnabled) : '—'} />
@@ -185,7 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   rangesTitle: {
-    color: '#90a4ae',
     fontSize: 13,
     marginBottom: 8,
   },
@@ -197,26 +213,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     gap: 8,
   },
-  rangeRowActive: {
-    backgroundColor: 'rgba(79, 195, 247, 0.15)',
-  },
   rangeSwatch: {
     width: 12,
     height: 12,
     borderRadius: 3,
   },
   rangeLabel: {
-    color: '#cfd8dc',
     fontSize: 13,
     flex: 1,
   },
   rangeValue: {
-    color: '#90a4ae',
     fontSize: 13,
     fontVariant: ['tabular-nums'],
   },
   rangeTextActive: {
-    color: '#ffffff',
     fontWeight: '600',
   },
 });

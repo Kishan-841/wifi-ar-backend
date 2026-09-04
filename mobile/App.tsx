@@ -2,8 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale } from './components/anim';
-import { palette } from './components/DebugUI';
+import { FadeSlideIn, PressableScale } from './components/anim';
+import { ThemeProvider, useTheme } from './components/theme';
 import ArScreen from './screens/ArScreen';
 import MeasureScreen from './screens/MeasureScreen';
 import ScansScreen from './screens/ScansScreen';
@@ -12,12 +12,26 @@ import WifiScreen from './screens/WifiScreen';
 type Tab = 'wifi' | 'ar' | 'measure' | 'scans';
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppShell />
+    </ThemeProvider>
+  );
+}
+
+function AppShell() {
+  const { theme, toggle } = useTheme();
   const [tab, setTab] = useState<Tab>('wifi');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>WiFi AR</Text>
+        <View style={styles.headerTop}>
+          <Text style={[styles.title, { color: theme.accent }]}>WiFi AR</Text>
+          <PressableScale onPress={toggle} style={[styles.modeToggle, { backgroundColor: theme.card }]}>
+            <Text style={styles.modeToggleText}>{theme.mode === 'dark' ? '☀️' : '🌙'}</Text>
+          </PressableScale>
+        </View>
         <View style={styles.tabs}>
           <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
           <TabButton label="AR" active={tab === 'ar'} onPress={() => setTab('ar')} />
@@ -30,16 +44,18 @@ export default function App() {
         </View>
       </View>
 
-      {tab === 'wifi' ? (
-        <WifiScreen />
-      ) : tab === 'ar' ? (
-        <ArScreen />
-      ) : tab === 'measure' ? (
-        <MeasureScreen />
-      ) : (
-        <ScansScreen />
-      )}
-      <StatusBar style="light" />
+      <FadeSlideIn key={tab} style={styles.content}>
+        {tab === 'wifi' ? (
+          <WifiScreen />
+        ) : tab === 'ar' ? (
+          <ArScreen />
+        ) : tab === 'measure' ? (
+          <MeasureScreen />
+        ) : (
+          <ScansScreen />
+        )}
+      </FadeSlideIn>
+      <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
   );
 }
@@ -53,9 +69,13 @@ function TabButton({
   active: boolean;
   onPress: () => void;
 }) {
+  const { theme } = useTheme();
   return (
-    <PressableScale style={[styles.tab, active && styles.tabActive]} onPress={onPress}>
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+    <PressableScale
+      style={[styles.tab, { backgroundColor: active ? theme.primary : theme.card }]}
+      onPress={onPress}
+    >
+      <Text style={[styles.tabText, { color: active ? '#ffffff' : theme.muted }]}>{label}</Text>
     </PressableScale>
   );
 }
@@ -63,17 +83,30 @@ function TabButton({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.bg,
   },
   header: {
     paddingTop: 56,
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   title: {
-    color: palette.accent,
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  modeToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeToggleText: {
+    fontSize: 17,
   },
   tabs: {
     flexDirection: 'row',
@@ -82,18 +115,13 @@ const styles = StyleSheet.create({
   },
   tab: {
     paddingVertical: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: palette.card,
-  },
-  tabActive: {
-    backgroundColor: '#1565c0',
   },
   tabText: {
-    color: palette.muted,
     fontWeight: '600',
   },
-  tabTextActive: {
-    color: '#ffffff',
+  content: {
+    flex: 1,
   },
 });
