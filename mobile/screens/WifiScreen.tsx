@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, PermissionsAndroid, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, PermissionsAndroid, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
+import { RSSI_BANDS, bandRangeText, rssiBandOf } from '../lib/heatmapColor';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
 import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
 
@@ -98,6 +99,16 @@ export default function WifiScreen() {
           <Row label="SSID" value={reading?.ssid ?? '—'} />
           <Row label="BSSID" value={reading?.bssid ?? '—'} />
           <Row label="RSSI" value={reading?.rssi != null ? `${reading.rssi} dBm` : '—'} big />
+          {reading?.rssi != null && (
+            <View style={styles.qualityRow}>
+              <Text style={ui.rowLabel}>Signal quality</Text>
+              <View
+                style={[styles.qualityChip, { backgroundColor: rssiBandOf(reading.rssi).color }]}
+              >
+                <Text style={styles.qualityChipText}>{rssiBandOf(reading.rssi).label}</Text>
+              </View>
+            </View>
+          )}
           <Row
             label="Frequency"
             value={
@@ -110,6 +121,24 @@ export default function WifiScreen() {
             label="Link speed"
             value={reading?.linkSpeedMbps != null ? `${reading.linkSpeedMbps} Mbps` : '—'}
           />
+        </View>
+
+        <View style={ui.card}>
+          <Text style={styles.rangesTitle}>Signal strength ranges</Text>
+          {RSSI_BANDS.map((band, i) => {
+            const active = reading?.rssi != null && rssiBandOf(reading.rssi) === band;
+            return (
+              <View key={band.label} style={[styles.rangeRow, active && styles.rangeRowActive]}>
+                <View style={[styles.rangeSwatch, { backgroundColor: band.color }]} />
+                <Text style={[styles.rangeLabel, active && styles.rangeTextActive]}>
+                  {band.label}
+                </Text>
+                <Text style={[styles.rangeValue, active && styles.rangeTextActive]}>
+                  {bandRangeText(i)}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         <View style={ui.card}>
@@ -138,5 +167,56 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 20,
     paddingBottom: 40,
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  qualityChip: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  qualityChipText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  rangesTitle: {
+    color: '#90a4ae',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    gap: 8,
+  },
+  rangeRowActive: {
+    backgroundColor: 'rgba(79, 195, 247, 0.15)',
+  },
+  rangeSwatch: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+  },
+  rangeLabel: {
+    color: '#cfd8dc',
+    fontSize: 13,
+    flex: 1,
+  },
+  rangeValue: {
+    color: '#90a4ae',
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+  },
+  rangeTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });
