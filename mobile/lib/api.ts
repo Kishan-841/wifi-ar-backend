@@ -21,6 +21,43 @@ const API_PORT = 4000;
 
 export type UploadResult = { id: string; measurementCount: number };
 
+export type ScanSummary = {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  ssid: string | null;
+  measurementCount: number;
+};
+
+export type ScanDetail = {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  ssid: string | null;
+  measurements: Measurement[];
+};
+
+export async function listScans(): Promise<ScanSummary[]> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`);
+  if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);
+  return response.json();
+}
+
+export async function getScan(id: string): Promise<ScanDetail> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans/${id}`);
+  if (!response.ok) throw new Error(`fetch failed (HTTP ${response.status})`);
+  const raw = await response.json();
+  return {
+    ...raw,
+    // The server stores timestamps as dates (ISO strings on the wire); the
+    // app's Measurement type uses epoch ms — convert once, at the boundary.
+    measurements: raw.measurements.map((m: any) => ({
+      ...m,
+      timestamp: new Date(m.timestamp).getTime(),
+    })),
+  };
+}
+
 export async function uploadScan(input: {
   startedAt: number;
   endedAt: number;
