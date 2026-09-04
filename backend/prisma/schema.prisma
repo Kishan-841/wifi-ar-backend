@@ -1,0 +1,38 @@
+// Deliberately minimal (plan §35): two tables. Rooms, users, and access points
+// stay as columns/absent until a phase needs them as entities.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Scan {
+  id           String        @id @default(uuid())
+  startedAt    DateTime
+  endedAt      DateTime
+  ssid         String?
+  createdAt    DateTime      @default(now())
+  measurements Measurement[]
+}
+
+model Measurement {
+  id              Int      @id @default(autoincrement())
+  scanId          String
+  scan            Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  timestamp       DateTime
+  x               Float
+  y               Float
+  z               Float
+  rssi            Int
+  ssid            String
+  bssid           String
+  frequency       Int
+  trackingQuality String
+  room            String?
+
+  @@index([scanId])
+}

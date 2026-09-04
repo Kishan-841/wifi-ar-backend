@@ -19,6 +19,7 @@ import {
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
+import { uploadScan } from '../lib/api';
 import {
   Measurement,
   assessMeasurement,
@@ -52,6 +53,12 @@ export default function MeasureScreen() {
   const [roomModalVisible, setRoomModalVisible] = useState(false);
   const [roomDraft, setRoomDraft] = useState('');
 
+  const [upload, setUpload] = useState<
+    { state: 'idle' } | { state: 'sending' } | { state: 'done'; id: string } | { state: 'error'; message: string }
+  >({ state: 'idle' });
+
+  const scanStartRef = useRef<number>(0);
+  const scanEndRef = useRef<number>(0);
   const roomRef = useRef<string | null>(null);
   const poseRef = useRef<Pose | null>(null);
   const trackingRef = useRef<TrackingState>('INITIALIZING');
@@ -168,6 +175,7 @@ export default function MeasureScreen() {
   const startStop = useCallback(() => {
     if (running) {
       setRunning(false);
+      scanEndRef.current = Date.now();
       // Camera unmounts now — AR session ends, its origin is gone.
       poseRef.current = null;
       setLivePose(null);
@@ -180,8 +188,25 @@ export default function MeasureScreen() {
     clearAll();
     roomRef.current = null;
     setCurrentRoom(null);
+    setUpload({ state: 'idle' });
+    scanStartRef.current = Date.now();
     setRunning(true);
   }, [running, clearAll]);
+
+  const doUpload = useCallback(async () => {
+    setUpload({ state: 'sending' });
+    try {
+      const result = await uploadScan({
+        startedAt: scanStartRef.current,
+        endedAt: scanEndRef.current || Date.now(),
+        ssid: measurements[0]?.ssid ?? null,
+        measurements,
+      });
+      setUpload({ state: 'done', id: result.id });
+    } catch (e) {
+      setUpload({ state: 'error', message: String(e) });
+    }
+  }, [measurements]);
 
   const confirmRoom = useCallback(() => {
     const name = roomDraft.trim();
@@ -269,8 +294,17 @@ export default function MeasureScreen() {
           {!running && measurements.length > 0 && (
             <>
               <Text style={styles.reasonText}>
-                Starting again begins a fresh scan — dump this dataset first to keep it.
+                Starting again begins a fresh scan — upload or dump this one first to keep it.
               </Text>
+              {upload.state === 'done' ? (
+                <Banner color="#1b5e20" text={`Uploaded ✓  scan ${upload.id.slice(0, 8)}…`} />
+              ) : (
+                <Button
+                  label={upload.state === 'sending' ? 'Uploading…' : 'Upload scan to server'}
+                  onPress={doUpload}
+                />
+              )}
+              {upload.state === 'error' && <Banner color="#b71c1c" text={upload.message} />}
               <Button label="Dump dataset to logs" onPress={dumpDataset} />
               <Button label="Clear measurements" onPress={clearAll} />
             </>
