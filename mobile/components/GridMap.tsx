@@ -27,6 +27,24 @@ type Props = {
 const MAX_CELL_PX = 36;
 const MIN_CELL_PX = 10;
 
+/** Average cell position per room — where the room's name is drawn on the map. */
+function roomCentroids(cells: GridCell[]): { room: string; cx: number; cz: number }[] {
+  const byRoom = new Map<string, { sx: number; sz: number; n: number }>();
+  for (const c of cells) {
+    if (c.room == null) continue;
+    const acc = byRoom.get(c.room) ?? { sx: 0, sz: 0, n: 0 };
+    acc.sx += c.cx;
+    acc.sz += c.cz;
+    acc.n += 1;
+    byRoom.set(c.room, acc);
+  }
+  return Array.from(byRoom.entries()).map(([room, a]) => ({
+    room,
+    cx: a.sx / a.n,
+    cz: a.sz / a.n,
+  }));
+}
+
 export default function GridMap({ cells, currentPose, height, showLegend }: Props) {
   if (cells.length === 0) {
     return (
@@ -82,6 +100,22 @@ export default function GridMap({ cells, currentPose, height, showLegend }: Prop
             }}
           />
         ))}
+        {showLegend &&
+          roomCentroids(cells).map((r) => (
+            <Text
+              key={r.room}
+              style={[
+                styles.roomLabel,
+                {
+                  left: (r.cx - minCx) * cellPx - 30,
+                  top: (r.cz - minCz) * cellPx - 7,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {r.room}
+            </Text>
+          ))}
         {currentPose && (
           <View
             style={[
@@ -116,6 +150,16 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#546e7a',
     fontSize: 12,
+  },
+  roomLabel: {
+    position: 'absolute',
+    width: 60,
+    textAlign: 'center',
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    textShadowColor: '#000000',
+    textShadowRadius: 3,
   },
   positionDot: {
     position: 'absolute',

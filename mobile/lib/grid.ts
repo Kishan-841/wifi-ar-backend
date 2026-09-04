@@ -22,6 +22,8 @@ export type GridCell = {
   maxRssi: number;
   /** How many of the contributing measurements were 'suspect' tracking. */
   suspectCount: number;
+  /** Room tag of the most recent contributing measurement. */
+  room: string | null;
   lastUpdated: number;
 };
 
@@ -41,10 +43,12 @@ export function addToGrid(grid: Map<string, GridCell>, m: Measurement): GridCell
       minRssi: m.rssi,
       maxRssi: m.rssi,
       suspectCount: 0,
+      room: null,
       lastUpdated: m.timestamp,
     };
     grid.set(key, cell);
   }
+  if (m.room != null) cell.room = m.room;
   cell.rssiValues.push(m.rssi);
   const sorted = [...cell.rssiValues].sort((a, b) => a - b);
   cell.medianRssi = sorted[Math.floor(sorted.length / 2)];

@@ -4,3 +4,6 @@ learning-docs/
 
 # macOS
 .DS_Store
+
+# Release artifacts (share files, don't commit binaries)
+dist/

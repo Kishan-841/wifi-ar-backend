@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PermissionsAndroid, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Modal,
+  PermissionsAndroid,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { ViroARSceneNavigator } from '@reactvision/react-viro';
 
 import {
@@ -11,7 +19,12 @@ import {
 import { Banner, Button, Row, styles as ui } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
-import { Measurement, assessMeasurement, buildMeasurement } from '../lib/measurement';
+import {
+  Measurement,
+  assessMeasurement,
+  buildMeasurement,
+  summarizeRooms,
+} from '../lib/measurement';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
 import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
@@ -35,7 +48,11 @@ export default function MeasureScreen() {
     state: 'INITIALIZING',
     reason: 'none',
   });
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
+  const [roomModalVisible, setRoomModalVisible] = useState(false);
+  const [roomDraft, setRoomDraft] = useState('');
 
+  const roomRef = useRef<string | null>(null);
   const poseRef = useRef<Pose | null>(null);
   const trackingRef = useRef<TrackingState>('INITIALIZING');
   const runningRef = useRef(false);
@@ -94,7 +111,12 @@ export default function MeasureScreen() {
       }
 
       // Record: identity from the raw reading, RSSI from the median filter.
-      const m = buildMeasurement({ ...wifi!, rssi: median.rssi }, pose!, trackingState);
+      const m = buildMeasurement(
+        { ...wifi!, rssi: median.rssi },
+        pose!,
+        trackingState,
+        roomRef.current
+      );
       setMeasurements((list) => [...list, m]);
       addToGrid(gridRef.current, m);
       setGridSummary(summarizeGrid(gridRef.current));
@@ -156,8 +178,20 @@ export default function MeasureScreen() {
     // Each start is a NEW AR session with a NEW origin — old points would
     // live in a different coordinate system, so a fresh scan starts clean.
     clearAll();
+    roomRef.current = null;
+    setCurrentRoom(null);
     setRunning(true);
   }, [running, clearAll]);
+
+  const confirmRoom = useCallback(() => {
+    const name = roomDraft.trim();
+    if (name.length > 0) {
+      roomRef.current = name;
+      setCurrentRoom(name);
+    }
+    setRoomDraft('');
+    setRoomModalVisible(false);
+  }, [roomDraft]);
 
   if (permission !== 'granted') {
     return (
@@ -195,6 +229,7 @@ export default function MeasureScreen() {
 
         <View style={[ui.card, styles.overlayCard]}>
           <Row label="Tracking" value={tracking.state} />
+          {running && <Row label="Current room" value={currentRoom ?? '(untagged)'} />}
           <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
           <Row label="Rejected" value={String(rejected)} />
           {lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
@@ -221,6 +256,12 @@ export default function MeasureScreen() {
             </>
           )}
 
+          {running && (
+            <Button
+              label={currentRoom ? `📍 Leaving ${currentRoom} — new room` : '📍 Tag current room'}
+              onPress={() => setRoomModalVisible(true)}
+            />
+          )}
           <Button
             label={running ? 'Stop measuring' : 'Start new scan'}
             onPress={startStop}
@@ -243,6 +284,19 @@ export default function MeasureScreen() {
         )}
 
         {!running && measurements.length > 0 && (
+          <View style={styles.roomStatsPanel}>
+            {summarizeRooms(measurements).map((r) => (
+              <View key={r.room} style={styles.roomStatsRow}>
+                <Text style={styles.roomStatsName}>{r.room}</Text>
+                <Text style={styles.roomStatsValue}>
+                  {r.points} pts   median {r.medianRssi} dBm   ({r.minRssi}…{r.maxRssi})
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!running && measurements.length > 0 && (
           <ScrollView style={styles.list}>
             {measurements
               .slice(-30)
@@ -257,6 +311,30 @@ export default function MeasureScreen() {
           </ScrollView>
         )}
       </View>
+
+      <Modal
+        visible={roomModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRoomModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Which room are you entering?</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={roomDraft}
+              onChangeText={setRoomDraft}
+              placeholder="e.g. Bedroom"
+              placeholderTextColor="#546e7a"
+              autoFocus
+              onSubmitEditing={confirmRoom}
+            />
+            <Button label="Set room" onPress={confirmRoom} />
+            <Button label="Cancel" onPress={() => setRoomModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -314,6 +392,52 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginTop: 8,
+  },
+  roomStatsPanel: {
+    backgroundColor: 'rgba(11, 29, 42, 0.92)',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+  },
+  roomStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
+  roomStatsName: {
+    color: '#4fc3f7',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  roomStatsValue: {
+    color: '#cfd8dc',
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  modalCard: {
+    backgroundColor: '#122b3d',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  modalInput: {
+    backgroundColor: '#0b1d2a',
+    borderRadius: 8,
+    color: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 15,
   },
   list: {
     maxHeight: 120,

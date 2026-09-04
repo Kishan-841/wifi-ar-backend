@@ -16,6 +16,8 @@ export type Measurement = {
   frequency: number;
   /** AR tracking state at capture time — Phase 4 filtering depends on this. */
   trackingQuality: TrackingState;
+  /** User-declared room at capture time ("Bedroom"); null before the first tag. */
+  room: string | null;
 };
 
 export type Assessment =
@@ -67,7 +69,8 @@ export function assessMeasurement(
 export function buildMeasurement(
   wifi: WifiReading,
   pose: Pose,
-  tracking: TrackingState
+  tracking: TrackingState,
+  room: string | null
 ): Measurement {
   return {
     timestamp: Date.now(),
@@ -79,7 +82,37 @@ export function buildMeasurement(
     bssid: wifi.bssid!,
     frequency: wifi.frequency ?? 0,
     trackingQuality: tracking,
+    room,
   };
+}
+
+export type RoomStats = {
+  room: string;
+  points: number;
+  medianRssi: number;
+  minRssi: number;
+  maxRssi: number;
+};
+
+/** Per-room aggregation — the first step toward per-room recommendations. */
+export function summarizeRooms(measurements: Measurement[]): RoomStats[] {
+  const byRoom = new Map<string, number[]>();
+  for (const m of measurements) {
+    const key = m.room ?? '(untagged)';
+    const list = byRoom.get(key) ?? [];
+    list.push(m.rssi);
+    byRoom.set(key, list);
+  }
+  return Array.from(byRoom.entries()).map(([room, values]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return {
+      room,
+      points: sorted.length,
+      medianRssi: sorted[Math.floor(sorted.length / 2)],
+      minRssi: sorted[0],
+      maxRssi: sorted[sorted.length - 1],
+    };
+  });
 }
 
 function round2(n: number): number {
