@@ -8,8 +8,15 @@
 
 ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 
+restore_tunnels() {
+  # Dev tunnels the app relies on: Metro (8081) + backend API (4000).
+  "$ADB" reverse tcp:8081 tcp:8081 2>/dev/null
+  "$ADB" reverse tcp:4000 tcp:4000 2>/dev/null
+  echo "Reverse tunnels restored (8081, 4000)."
+}
+
 if [ -n "$1" ]; then
-  "$ADB" connect "$1"
+  "$ADB" connect "$1" && restore_tunnels
   exit $?
 fi
 
@@ -19,7 +26,7 @@ for i in $(seq 1 15); do
   ADDR=$("$ADB" mdns services 2>/dev/null | awk '/_adb-tls-connect/ {print $NF; exit}')
   if [ -n "$ADDR" ]; then
     echo "Found: $ADDR"
-    "$ADB" connect "$ADDR" && "$ADB" devices
+    "$ADB" connect "$ADDR" && "$ADB" devices && restore_tunnels
     exit 0
   fi
   sleep 1
