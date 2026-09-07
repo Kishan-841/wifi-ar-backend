@@ -5,11 +5,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FadeSlideIn, PressableScale } from './components/anim';
 import { ThemeProvider, useTheme } from './components/theme';
 import ArScreen from './screens/ArScreen';
+import HomeScreen from './screens/HomeScreen';
 import MeasureScreen from './screens/MeasureScreen';
 import ScansScreen from './screens/ScansScreen';
 import WifiScreen from './screens/WifiScreen';
 
-type Tab = 'wifi' | 'ar' | 'measure' | 'scans';
+type Tab = 'wifi' | 'ar' | 'measure' | 'scans' | 'home';
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ function AppShell() {
             onPress={() => setTab('measure')}
           />
           <TabButton label="Scans" active={tab === 'scans'} onPress={() => setTab('scans')} />
+          <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
         </View>
       </View>
 
@@ -51,8 +53,10 @@ function AppShell() {
           <ArScreen />
         ) : tab === 'measure' ? (
           <MeasureScreen />
-        ) : (
+        ) : tab === 'scans' ? (
           <ScansScreen />
+        ) : (
+          <HomeScreen />
         )}
       </FadeSlideIn>
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />

@@ -37,6 +37,59 @@ export type ScanDetail = {
   measurements: Measurement[];
 };
 
+export type Placement = { scanId: string; col: number; row: number; rotation: number };
+
+export type Layout = {
+  id: string;
+  name: string;
+  cols: number;
+  rows: number;
+  placements: Placement[];
+};
+
+export type LayoutSummary = {
+  id: string;
+  name: string;
+  cols: number;
+  rows: number;
+  placementCount: number;
+};
+
+export async function listLayouts(): Promise<LayoutSummary[]> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts`);
+  if (!response.ok) throw new Error(`layouts list failed (HTTP ${response.status})`);
+  return response.json();
+}
+
+export async function getLayout(id: string): Promise<Layout> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`);
+  if (!response.ok) throw new Error(`layout fetch failed (HTTP ${response.status})`);
+  return response.json();
+}
+
+export async function createLayout(name: string, cols: number, rows: number): Promise<Layout> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, cols, rows }),
+  });
+  if (!response.ok) throw new Error(`layout create failed (HTTP ${response.status})`);
+  return { ...(await response.json()), placements: [] };
+}
+
+export async function saveLayout(
+  id: string,
+  update: { cols?: number; rows?: number; placements: Placement[] }
+): Promise<Layout> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  });
+  if (!response.ok) throw new Error(`layout save failed (HTTP ${response.status})`);
+  return response.json();
+}
+
 export async function listScans(): Promise<ScanSummary[]> {
   const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`);
   if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);

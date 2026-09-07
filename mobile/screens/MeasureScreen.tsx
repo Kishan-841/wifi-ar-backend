@@ -55,6 +55,8 @@ export default function MeasureScreen() {
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [roomModalVisible, setRoomModalVisible] = useState(false);
   const [roomDraft, setRoomDraft] = useState('');
+  /** True while the room modal is acting as the "name room, then start" gate. */
+  const [pendingStart, setPendingStart] = useState(false);
 
   const [upload, setUpload] = useState<
     { state: 'idle' } | { state: 'sending' } | { state: 'done'; id: string } | { state: 'error'; message: string }
@@ -175,6 +177,20 @@ export default function MeasureScreen() {
     gridRef.current.clear();
   }, []);
 
+  const reallyStart = useCallback(
+    (room: string | null) => {
+      // Each start is a NEW AR session with a NEW origin — old points would
+      // live in a different coordinate system, so a fresh scan starts clean.
+      clearAll();
+      roomRef.current = room;
+      setCurrentRoom(room);
+      setUpload({ state: 'idle' });
+      scanStartRef.current = Date.now();
+      setRunning(true);
+    },
+    [clearAll]
+  );
+
   const startStop = useCallback(() => {
     if (running) {
       setRunning(false);
@@ -186,15 +202,11 @@ export default function MeasureScreen() {
       setTracking({ state: 'INITIALIZING', reason: 'none' });
       return;
     }
-    // Each start is a NEW AR session with a NEW origin — old points would
-    // live in a different coordinate system, so a fresh scan starts clean.
-    clearAll();
-    roomRef.current = null;
-    setCurrentRoom(null);
-    setUpload({ state: 'idle' });
-    scanStartRef.current = Date.now();
-    setRunning(true);
-  }, [running, clearAll]);
+    // Name the room first (one scan = one room piece for the Home board).
+    setRoomDraft('');
+    setPendingStart(true);
+    setRoomModalVisible(true);
+  }, [running]);
 
   const doUpload = useCallback(async () => {
     setUpload({ state: 'sending' });
@@ -213,13 +225,18 @@ export default function MeasureScreen() {
 
   const confirmRoom = useCallback(() => {
     const name = roomDraft.trim();
+    setRoomDraft('');
+    setRoomModalVisible(false);
+    if (pendingStart) {
+      setPendingStart(false);
+      reallyStart(name.length > 0 ? name : null);
+      return;
+    }
     if (name.length > 0) {
       roomRef.current = name;
       setCurrentRoom(name);
     }
-    setRoomDraft('');
-    setRoomModalVisible(false);
-  }, [roomDraft]);
+  }, [roomDraft, pendingStart, reallyStart]);
 
   if (permission !== 'granted') {
     return (
@@ -365,7 +382,9 @@ export default function MeasureScreen() {
       >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Which room are you entering?</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              {pendingStart ? 'Which room is this scan for?' : 'Which room are you entering?'}
+            </Text>
             <TextInput
               style={[styles.modalInput, { backgroundColor: theme.inputBg, color: theme.text }]}
               value={roomDraft}
@@ -375,8 +394,15 @@ export default function MeasureScreen() {
               autoFocus
               onSubmitEditing={confirmRoom}
             />
-            <Button label="Set room" onPress={confirmRoom} />
-            <Button label="Cancel" variant="ghost" onPress={() => setRoomModalVisible(false)} />
+            <Button label={pendingStart ? 'Start scan' : 'Set room'} onPress={confirmRoom} />
+            <Button
+              label="Cancel"
+              variant="ghost"
+              onPress={() => {
+                setRoomModalVisible(false);
+                setPendingStart(false);
+              }}
+            />
           </View>
         </View>
       </Modal>

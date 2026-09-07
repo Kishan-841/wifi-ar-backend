@@ -19,6 +19,28 @@ model Scan {
   measurements Measurement[]
 }
 
+model Layout {
+  id         String          @id @default(uuid())
+  name       String
+  cols       Int
+  rows       Int
+  createdAt  DateTime        @default(now())
+  placements RoomPlacement[]
+}
+
+model RoomPlacement {
+  id       Int    @id @default(autoincrement())
+  layoutId String
+  layout   Layout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  scanId   String
+  col      Int
+  row      Int
+  /** Quarter turns clockwise: 0..3 */
+  rotation Int
+
+  @@unique([layoutId, scanId])
+}
+
 model Measurement {
   id              Int      @id @default(autoincrement())
   scanId          String

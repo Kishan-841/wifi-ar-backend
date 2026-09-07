@@ -87,6 +87,91 @@ app.get('/api/scans/:id', async (req, res) => {
   res.json(scan);
 });
 
+const placementSchema = z.object({
+  scanId: z.string().uuid(),
+  col: z.number().int().min(0),
+  row: z.number().int().min(0),
+  rotation: z.number().int().min(0).max(3),
+});
+
+const layoutCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  cols: z.number().int().min(4).max(200),
+  rows: z.number().int().min(4).max(200),
+});
+
+const layoutUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  cols: z.number().int().min(4).max(200).optional(),
+  rows: z.number().int().min(4).max(200).optional(),
+  placements: z.array(placementSchema).max(200),
+});
+
+app.post('/api/layouts', async (req, res) => {
+  const parsed = layoutCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid layout', details: parsed.error.issues.slice(0, 5) });
+    return;
+  }
+  const layout = await prisma.layout.create({ data: parsed.data });
+  res.status(201).json(layout);
+});
+
+app.get('/api/layouts', async (_req, res) => {
+  const layouts = await prisma.layout.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { _count: { select: { placements: true } } },
+  });
+  res.json(
+    layouts.map((l) => ({
+      id: l.id,
+      name: l.name,
+      cols: l.cols,
+      rows: l.rows,
+      placementCount: l._count.placements,
+    }))
+  );
+});
+
+app.get('/api/layouts/:id', async (req, res) => {
+  const layout = await prisma.layout.findUnique({
+    where: { id: req.params.id },
+    include: { placements: true },
+  });
+  if (!layout) {
+    res.status(404).json({ error: 'layout not found' });
+    return;
+  }
+  res.json(layout);
+});
+
+app.put('/api/layouts/:id', async (req, res) => {
+  const parsed = layoutUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid layout update', details: parsed.error.issues.slice(0, 5) });
+    return;
+  }
+  const { placements, ...fields } = parsed.data;
+  const existing = await prisma.layout.findUnique({ where: { id: req.params.id } });
+  if (!existing) {
+    res.status(404).json({ error: 'layout not found' });
+    return;
+  }
+  // Placements are replaced wholesale — the board's saved state IS the list.
+  const layout = await prisma.$transaction(async (tx) => {
+    await tx.roomPlacement.deleteMany({ where: { layoutId: req.params.id } });
+    return tx.layout.update({
+      where: { id: req.params.id },
+      data: {
+        ...fields,
+        placements: { create: placements },
+      },
+      include: { placements: true },
+    });
+  });
+  res.json(layout);
+});
+
 const PORT = Number(process.env.PORT ?? 4000);
 app.listen(PORT, () => {
   console.log(`wifi-ar backend listening on :${PORT}`);
