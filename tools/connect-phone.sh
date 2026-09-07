@@ -10,9 +10,14 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 
 restore_tunnels() {
   # Dev tunnels the app relies on: Metro (8081) + backend API (4000).
-  "$ADB" reverse tcp:8081 tcp:8081 2>/dev/null
-  "$ADB" reverse tcp:4000 tcp:4000 2>/dev/null
-  echo "Reverse tunnels restored (8081, 4000)."
+  # The phone can appear under two serials (mDNS + ip:port) — pick one
+  # explicitly or adb refuses with "more than one device".
+  local serial
+  serial=$("$ADB" devices | awk '/\tdevice$/ {print $1; exit}')
+  "$ADB" -s "$serial" reverse tcp:8081 tcp:8081 \
+    && "$ADB" -s "$serial" reverse tcp:4000 tcp:4000 \
+    && echo "Reverse tunnels restored (8081, 4000) on $serial" \
+    || echo "WARNING: tunnel setup failed — uploads/API will not work"
 }
 
 if [ -n "$1" ]; then
