@@ -18,15 +18,20 @@ const CELL = 0.5;
  * 3. Fill: unmeasured cells inherit the RSSI of their nearest measured cell,
  *    flagged `interpolated` so rendering can show them slightly translucent.
  */
-export function fitPieceToRect(
-  measurements: Measurement[],
-  w: number,
-  h: number,
-  scanId: string,
-  name: string
-): RoomPiece {
-  const pts = measurements.map((m) => ({ x: m.x, z: m.z, rssi: m.rssi }));
+export type FitParams = {
+  cos: number;
+  sin: number;
+  swap: boolean;
+  ox: number;
+  oz: number;
+  nx: number;
+  nz: number;
+  w: number;
+  h: number;
+};
 
+/** Compute the trail→rectangle mapping (de-skew rotation + bbox stretch). */
+export function computeFit(pts: { x: number; z: number }[], w: number, h: number): FitParams {
   // 1 — de-skew: brute-force the tightest bounding box.
   let bestAngle = 0;
   let bestArea = Infinity;
@@ -54,32 +59,56 @@ export function fitPieceToRect(
   const rotated = pts.map((p) => ({
     x: p.x * cos - p.z * sin,
     z: p.x * sin + p.z * cos,
-    rssi: p.rssi,
   }));
 
   // Orient the data's long side to the declared long side.
-  let minX = Math.min(...rotated.map((p) => p.x));
-  let maxX = Math.max(...rotated.map((p) => p.x));
-  let minZ = Math.min(...rotated.map((p) => p.z));
-  let maxZ = Math.max(...rotated.map((p) => p.z));
+  const minX = Math.min(...rotated.map((p) => p.x));
+  const maxX = Math.max(...rotated.map((p) => p.x));
+  const minZ = Math.min(...rotated.map((p) => p.z));
+  const maxZ = Math.max(...rotated.map((p) => p.z));
   const dataWide = maxX - minX >= maxZ - minZ;
   const targetWide = w >= h;
   const swap = dataWide !== targetWide;
 
-  // 2 — stretch trail bbox onto the declared grid.
+  return {
+    cos,
+    sin,
+    swap,
+    ox: swap ? minZ : minX,
+    oz: swap ? minX : minZ,
+    nx: swap ? maxZ - minZ : maxX - minX,
+    nz: swap ? maxX - minX : maxZ - minZ,
+    w,
+    h,
+  };
+}
+
+/** Map one AR point into a declared-grid box via a computed fit. */
+export function applyFit(x: number, z: number, f: FitParams): { dx: number; dz: number } {
+  const rx = x * f.cos - z * f.sin;
+  const rz = x * f.sin + z * f.cos;
+  const px = f.swap ? rz : rx;
+  const pz = f.swap ? rx : rz;
+  const dx = f.nx < CELL ? 0 : Math.max(0, Math.min(f.w - 1, Math.round(((px - f.ox) / f.nx) * (f.w - 1))));
+  const dz = f.nz < CELL ? 0 : Math.max(0, Math.min(f.h - 1, Math.round(((pz - f.oz) / f.nz) * (f.h - 1))));
+  return { dx, dz };
+}
+
+export function fitPieceToRect(
+  measurements: Measurement[],
+  w: number,
+  h: number,
+  scanId: string,
+  name: string
+): RoomPiece {
+  const fit = computeFit(measurements, w, h);
+
   const values = new Map<string, number[]>();
-  for (const p of rotated) {
-    const px = swap ? p.z : p.x;
-    const pz = swap ? p.x : p.z;
-    const nx = swap ? maxZ - minZ : maxX - minX;
-    const nz = swap ? maxX - minX : maxZ - minZ;
-    const ox = swap ? minZ : minX;
-    const oz = swap ? minX : minZ;
-    const dx = nx < CELL ? 0 : Math.min(w - 1, Math.round(((px - ox) / nx) * (w - 1)));
-    const dz = nz < CELL ? 0 : Math.min(h - 1, Math.round(((pz - oz) / nz) * (h - 1)));
+  for (const m of measurements) {
+    const { dx, dz } = applyFit(m.x, m.z, fit);
     const key = `${dx},${dz}`;
     const list = values.get(key) ?? [];
-    list.push(p.rssi);
+    list.push(m.rssi);
     values.set(key, list);
   }
 

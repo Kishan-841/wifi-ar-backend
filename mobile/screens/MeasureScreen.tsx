@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   PermissionsAndroid,
@@ -19,6 +19,7 @@ import {
 } from '../components/ArPoseSource';
 import { Banner, Button, Row, card } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
+import ShapeGrid from '../components/ShapeGrid';
 import { useTheme } from '../components/theme';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
 import { ScanSummary, listScans, uploadScan } from '../lib/api';
@@ -28,6 +29,8 @@ import {
   buildMeasurement,
   summarizeRooms,
 } from '../lib/measurement';
+import { applyFit, computeFit } from '../lib/roomFit';
+import { rssiToColor } from '../lib/heatmapColor';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
 import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
@@ -60,6 +63,7 @@ export default function MeasureScreen() {
   const [shapeWDraft, setShapeWDraft] = useState('');
   const [shapeHDraft, setShapeHDraft] = useState('');
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
+  const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
   const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
 
   const [upload, setUpload] = useState<
@@ -253,6 +257,11 @@ export default function MeasureScreen() {
         w: Number.isFinite(w) && w > 0 ? w : null,
         h: Number.isFinite(h) && h > 0 ? h : null,
       };
+      setCurrentShape(
+        shapeRef.current.w != null && shapeRef.current.h != null
+          ? { w: shapeRef.current.w, h: shapeRef.current.h }
+          : null
+      );
       reallyStart(name.length > 0 ? name : null);
       return;
     }
@@ -269,6 +278,34 @@ export default function MeasureScreen() {
       </View>
     );
   }
+
+  // Live fit: map the trail so far into the declared grid — recomputed as the
+  // walk grows, so the boxes fill in and settle as coverage improves.
+  const liveFit = useMemo(() => {
+    if (!currentShape || measurements.length < 2) return null;
+    return computeFit(measurements, currentShape.w, currentShape.h);
+  }, [currentShape, measurements]);
+
+  const shapeColors = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!liveFit) return map;
+    const values = new Map<string, number[]>();
+    for (const m of measurements) {
+      const { dx, dz } = applyFit(m.x, m.z, liveFit);
+      const key = `${dx},${dz}`;
+      const list = values.get(key) ?? [];
+      list.push(m.rssi);
+      values.set(key, list);
+    }
+    for (const [key, list] of values) {
+      const sorted = [...list].sort((a, b) => a - b);
+      map.set(key, rssiToColor(sorted[Math.floor(sorted.length / 2)]));
+    }
+    return map;
+  }, [liveFit, measurements]);
+
+  const shapeDot =
+    liveFit && livePose ? applyFit(livePose.x, livePose.z, liveFit) : null;
 
   const latest = measurements[measurements.length - 1];
 
@@ -290,7 +327,12 @@ export default function MeasureScreen() {
       )}
 
       <View style={styles.overlay} pointerEvents="box-none">
-        {running && cells.length > 0 && (
+        {running && currentShape && (
+          <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
+            <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} dot={shapeDot} />
+          </View>
+        )}
+        {running && !currentShape && cells.length > 0 && (
           <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
             <GridMap cells={cells} currentPose={livePose} height={150} />
           </View>
@@ -363,7 +405,15 @@ export default function MeasureScreen() {
           )}
         </View>
 
-        {!running && cells.length > 0 && (
+        {!running && currentShape && measurements.length > 0 && (
+          <View style={[styles.fullMapPanel, { backgroundColor: theme.overlayCard }]}>
+            <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} />
+            <Text style={[styles.reasonText, { marginTop: 6 }]}>
+              Empty boxes are filled from nearest readings after upload.
+            </Text>
+          </View>
+        )}
+        {!running && !currentShape && cells.length > 0 && (
           <View style={[styles.fullMapPanel, { backgroundColor: theme.overlayCard }]}>
             <GridMap cells={cells} height={240} showLegend />
           </View>
