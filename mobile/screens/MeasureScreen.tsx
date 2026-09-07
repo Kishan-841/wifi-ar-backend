@@ -29,7 +29,17 @@ import {
   buildMeasurement,
   summarizeRooms,
 } from '../lib/measurement';
-import { bestOrientation, fitsAnyOrientation, fixedGridBox } from '../lib/roomFit';
+import {
+  Box,
+  CELL_M,
+  SAMPLE_SECONDS,
+  STEP_DISTANCE_M,
+  STILL_THRESHOLD_M,
+  boxKey,
+  moveHint,
+  serpentineOrder,
+} from '../lib/guided';
+import { bestOrientation, fixedGridBox } from '../lib/roomFit';
 import { rssiToColor } from '../lib/heatmapColor';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
@@ -65,6 +75,21 @@ export default function MeasureScreen() {
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
   const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
   const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
+
+  /** Guided survey: the walk order defines position; AR only nudges "next box". */
+  type Guided = {
+    order: Box[];
+    index: number;
+    done: Map<string, number>;
+    skipped: Set<string>;
+    sampling: boolean;
+  };
+  const [guided, setGuided] = useState<Guided | null>(null);
+  const guidedRef = useRef<Guided | null>(null);
+  guidedRef.current = guided;
+  const anchorPoseRef = useRef<Pose | null>(null);
+  const recentPosesRef = useRef<{ t: number; p: Pose }[]>([]);
+  const movedSinceAnchorRef = useRef(false);
 
   const [upload, setUpload] = useState<
     { state: 'idle' } | { state: 'sending' } | { state: 'done'; id: string } | { state: 'error'; message: string }
@@ -113,6 +138,7 @@ export default function MeasureScreen() {
 
     const tick = () => {
       if (!runningRef.current) return;
+      if (guidedRef.current) return; // guided mode records per box, not per tick
       const wifi = lastWifiRef.current;
       const pose = poseRef.current;
       const trackingState = trackingRef.current;
@@ -127,16 +153,6 @@ export default function MeasureScreen() {
       if (!median || median.sampleCount < MIN_SAMPLES) {
         setRejected((n) => n + 1);
         setLastReason(`warming up (${median?.sampleCount ?? 0}/${MIN_SAMPLES} samples)`);
-        return;
-      }
-      const shape = shapeRef.current;
-      if (
-        shape.w != null &&
-        shape.h != null &&
-        !fitsAnyOrientation(pose!.x, pose!.z, shape.w, shape.h)
-      ) {
-        setRejected((n) => n + 1);
-        setLastReason('outside the room grid — ignored');
         return;
       }
 
@@ -168,6 +184,109 @@ export default function MeasureScreen() {
     trackingRef.current = state;
     setTracking({ state, reason });
   }, []);
+
+  /** Advance to the next box that is neither recorded nor skipped. */
+  const nextIndex = (g: Guided, from: number) => {
+    let i = from;
+    while (i < g.order.length) {
+      const k = boxKey(g.order[i]);
+      if (!g.done.has(k) && !g.skipped.has(k)) return i;
+      i += 1;
+    }
+    return g.order.length;
+  };
+
+  const recordBox = useCallback(() => {
+    const g = guidedRef.current;
+    if (!g || g.sampling || g.index >= g.order.length) return;
+    const target = g.order[g.index];
+    setGuided({ ...g, sampling: true });
+    samplerRef.current.reset();
+    setLastReason(null);
+
+    setTimeout(() => {
+      const gg = guidedRef.current;
+      if (!gg) return;
+      const median = samplerRef.current.current();
+      const wifi = lastWifiRef.current;
+      if (!median || median.sampleCount < 2 || !wifi?.bssid || wifi.bssid === '02:00:00:00:00:00') {
+        setLastReason('no usable Wi-Fi sample — hold still and tap Record again');
+        setGuided({ ...gg, sampling: false });
+        return;
+      }
+      // Position comes from the BOX, not from AR: synthetic box-center coords.
+      const m = buildMeasurement(
+        { ...wifi, rssi: median.rssi },
+        { x: target.dx * CELL_M, y: 0, z: -target.dz * CELL_M },
+        trackingRef.current,
+        roomRef.current
+      );
+      setMeasurements((list) => [...list, m]);
+      addToGrid(gridRef.current, m);
+      setGridSummary(summarizeGrid(gridRef.current));
+      setCells(Array.from(gridRef.current.values()));
+
+      const done = new Map(gg.done).set(boxKey(target), median.rssi);
+      const skipped = new Set(gg.skipped);
+      skipped.delete(boxKey(target));
+      const next = { ...gg, done, skipped, sampling: false };
+      next.index = nextIndex(next, gg.index + 1);
+      setGuided(next);
+      // AR resets here: the next "you moved a box" is measured from this spot.
+      anchorPoseRef.current = poseRef.current;
+      movedSinceAnchorRef.current = false;
+    }, SAMPLE_SECONDS * 1000);
+  }, []);
+
+  const skipBox = useCallback(() => {
+    const g = guidedRef.current;
+    if (!g || g.sampling || g.index >= g.order.length) return;
+    const skipped = new Set(g.skipped).add(boxKey(g.order[g.index]));
+    const next = { ...g, skipped };
+    next.index = nextIndex(next, g.index + 1);
+    setGuided(next);
+    anchorPoseRef.current = poseRef.current;
+    movedSinceAnchorRef.current = false;
+  }, []);
+
+  const jumpToBox = useCallback((dx: number, dz: number) => {
+    const g = guidedRef.current;
+    if (!g || g.sampling) return;
+    const i = g.order.findIndex((b) => b.dx === dx && b.dz === dz);
+    if (i >= 0) setGuided({ ...g, index: i });
+  }, []);
+
+  // AR assist: when you have clearly moved about a box and then stand still,
+  // record automatically. Drift can't accumulate — the anchor resets per box.
+  useEffect(() => {
+    if (!running || !guided) return;
+    const timer = setInterval(() => {
+      const g = guidedRef.current;
+      const pose = poseRef.current;
+      if (!g || g.sampling || g.index >= g.order.length || !pose) return;
+      if (trackingRef.current !== 'TRACKING') return;
+
+      const now = Date.now();
+      const recent = recentPosesRef.current.filter((r) => now - r.t < 1200);
+      recent.push({ t: now, p: pose });
+      recentPosesRef.current = recent;
+      const oldest = recent[0].p;
+      const recentMove = Math.hypot(pose.x - oldest.x, pose.z - oldest.z);
+      if (recentMove > 0.1) movedSinceAnchorRef.current = true;
+      const still = recent.length >= 3 && recentMove < STILL_THRESHOLD_M;
+      if (!still) return;
+
+      const anchor = anchorPoseRef.current;
+      if (!anchor) {
+        // First box: standing still in the corner is enough.
+        recordBox();
+        return;
+      }
+      const moved = Math.hypot(pose.x - anchor.x, pose.z - anchor.z);
+      if (moved >= STEP_DISTANCE_M && movedSinceAnchorRef.current) recordBox();
+    }, 400);
+    return () => clearInterval(timer);
+  }, [running, guided, recordBox]);
 
   const dumpDataset = useCallback(() => {
     const cells = Array.from(gridRef.current.entries()).map(([key, c]) => ({
@@ -204,6 +323,21 @@ export default function MeasureScreen() {
       setCurrentRoom(room);
       setUpload({ state: 'idle' });
       scanStartRef.current = Date.now();
+      const { w, h } = shapeRef.current;
+      if (w != null && h != null) {
+        setGuided({
+          order: serpentineOrder(w, h),
+          index: 0,
+          done: new Map(),
+          skipped: new Set(),
+          sampling: false,
+        });
+      } else {
+        setGuided(null);
+      }
+      anchorPoseRef.current = null;
+      recentPosesRef.current = [];
+      movedSinceAnchorRef.current = false;
       setRunning(true);
     },
     [clearAll]
@@ -292,6 +426,10 @@ export default function MeasureScreen() {
   const shapeColors = useMemo(() => {
     const map = new Map<string, string>();
     if (!currentShape) return map;
+    if (guided) {
+      for (const [key, rssi] of guided.done) map.set(key, rssiToColor(rssi));
+      return map;
+    }
     const orientation = bestOrientation(measurements, currentShape.w, currentShape.h);
     const values = new Map<string, number[]>();
     for (const m of measurements) {
@@ -307,18 +445,12 @@ export default function MeasureScreen() {
       map.set(key, rssiToColor(sorted[Math.floor(sorted.length / 2)]));
     }
     return map;
-  }, [currentShape, measurements]);
+  }, [currentShape, measurements, guided]);
 
-  const shapeDot =
-    currentShape && livePose
-      ? fixedGridBox(
-          livePose.x,
-          livePose.z,
-          currentShape.w,
-          currentShape.h,
-          bestOrientation(measurements, currentShape.w, currentShape.h)
-        )
-      : null;
+  const guidedTarget = guided && guided.index < guided.order.length ? guided.order[guided.index] : null;
+  const guidedPrev =
+    guided && guided.index > 0 ? guided.order[Math.max(0, guided.index - 1)] : null;
+  const guidedComplete = guided != null && guided.index >= guided.order.length;
 
 
   if (permission !== 'granted') {
@@ -349,12 +481,23 @@ export default function MeasureScreen() {
       )}
 
       <View style={styles.overlay} pointerEvents="box-none">
-        {running && currentShape && (
+        {running && currentShape && guided && (
           <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
-            <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} dot={shapeDot} />
-            {!shapeDot && (
-              <Text style={styles.reasonText}>You are outside the grid — readings ignored</Text>
-            )}
+            <ShapeGrid
+              w={currentShape.w}
+              h={currentShape.h}
+              colors={shapeColors}
+              skipped={guided.skipped}
+              target={guidedTarget}
+              onBoxPress={jumpToBox}
+            />
+            <Text style={[styles.guideHint, { color: guidedComplete ? '#22C55E' : theme.text }]}>
+              {guided.sampling
+                ? 'Sampling Wi-Fi… hold still'
+                : guidedComplete
+                  ? '✓ Room complete — stop and upload'
+                  : moveHint(guidedPrev, guidedTarget!)}
+            </Text>
           </View>
         )}
         {running && !currentShape && cells.length > 0 && (
@@ -398,7 +541,17 @@ export default function MeasureScreen() {
             </>
           )}
 
-          {running && (
+          {running && guided && !guidedComplete && (
+            <View style={styles.guidedButtons}>
+              <View style={{ flex: 1 }}>
+                <Button label="Record here" loading={guided.sampling} onPress={recordBox} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button label="Skip (obstacle)" variant="ghost" onPress={skipBox} />
+              </View>
+            </View>
+          )}
+          {running && !guided && (
             <Button
               label={currentRoom ? `📍 Leaving ${currentRoom} — new room` : '📍 Tag current room'}
               onPress={() => setRoomModalVisible(true)}
@@ -602,6 +755,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 4,
+  },
+  guideHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  guidedButtons: {
+    flexDirection: 'row',
+    gap: 10,
   },
   recordingText: {
     color: '#ef9a9a',

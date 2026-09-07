@@ -1,71 +1,69 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from './theme';
 
 /**
- * Live view of a declared room grid during a scan: W×H boxes, colored as
- * their cells get measured, with the phone's mapped position and a coverage
- * count. This is the "fill out the grid" experience — the raw trail stays
- * out of sight; the declared rectangle IS the display.
+ * The room grid during a guided survey: W×H boxes — recorded ones colored,
+ * skipped ones marked, the target box highlighted. Tap any box to jump there.
  */
 
 type Props = {
   w: number;
   h: number;
-  /** "dx,dz" → heatmap color for boxes that have measurements. */
+  /** "dx,dz" → heatmap color for recorded boxes. */
   colors: Map<string, string>;
-  /** Phone's current position mapped into the grid, if known. */
-  dot?: { dx: number; dz: number } | null;
+  skipped?: Set<string>;
+  /** The box the user should stand in next. */
+  target?: { dx: number; dz: number } | null;
+  onBoxPress?: (dx: number, dz: number) => void;
 };
 
-export default function ShapeGrid({ w, h, colors, dot }: Props) {
+export default function ShapeGrid({ w, h, colors, skipped, target, onBoxPress }: Props) {
   const { theme } = useTheme();
-  const cellPx = Math.max(10, Math.min(26, Math.floor(300 / w), Math.floor(150 / h)));
-  const covered = colors.size;
+  const cellPx = Math.max(12, Math.min(30, Math.floor(300 / w), Math.floor(170 / h)));
+  const recorded = colors.size;
+  const skippedCount = skipped?.size ?? 0;
   const total = w * h;
+  const complete = recorded + skippedCount >= total;
 
   const boxes = [];
   for (let dz = 0; dz < h; dz++) {
     for (let dx = 0; dx < w; dx++) {
-      const color = colors.get(`${dx},${dz}`);
+      const key = `${dx},${dz}`;
+      const color = colors.get(key);
+      const isSkipped = skipped?.has(key);
+      const isTarget = target?.dx === dx && target?.dz === dz;
       boxes.push(
-        <View
-          key={`${dx},${dz}`}
+        <Pressable
+          key={key}
+          onPress={onBoxPress ? () => onBoxPress(dx, dz) : undefined}
           style={{
             position: 'absolute',
             left: dx * cellPx,
             top: dz * cellPx,
             width: cellPx - 1,
             height: cellPx - 1,
-            borderRadius: 2,
+            borderRadius: 3,
             backgroundColor: color ?? theme.inputBg,
-            borderWidth: color ? 0 : StyleSheet.hairlineWidth,
-            borderColor: theme.border,
+            borderWidth: isTarget ? 3 : StyleSheet.hairlineWidth,
+            borderColor: isTarget ? theme.accent : theme.border,
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
-        />
+        >
+          {isSkipped && <Text style={{ color: theme.muted, fontSize: 10 }}>–</Text>}
+        </Pressable>
       );
     }
   }
 
   return (
     <View style={styles.container}>
-      <View style={{ width: w * cellPx, height: h * cellPx }}>
-        {boxes}
-        {dot && (
-          <View
-            style={[
-              styles.dot,
-              {
-                left: dot.dx * cellPx + cellPx / 2 - 5,
-                top: dot.dz * cellPx + cellPx / 2 - 5,
-                borderColor: theme.card,
-              },
-            ]}
-          />
-        )}
-      </View>
-      <Text style={[styles.coverage, { color: covered === total ? '#22C55E' : theme.muted }]}>
-        {covered === total ? '✓ Grid fully covered' : `Coverage: ${covered}/${total} boxes`}
+      <View style={{ width: w * cellPx, height: h * cellPx }}>{boxes}</View>
+      <Text style={[styles.coverage, { color: complete ? '#22C55E' : theme.muted }]}>
+        {complete
+          ? '✓ Room complete'
+          : `${recorded}/${total} boxes recorded${skippedCount ? `, ${skippedCount} skipped` : ''}`}
       </Text>
     </View>
   );
@@ -74,14 +72,6 @@ export default function ShapeGrid({ w, h, colors, dot }: Props) {
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-  },
-  dot: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#34D399',
-    borderWidth: 2,
   },
   coverage: {
     fontSize: 12,
