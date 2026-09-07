@@ -172,6 +172,16 @@ app.get('/api/layouts/:id', async (req, res) => {
   res.json(layout);
 });
 
+app.delete('/api/layouts/:id', async (req, res) => {
+  const layout = await prisma.layout.findUnique({ where: { id: req.params.id } });
+  if (!layout) {
+    res.status(404).json({ error: 'layout not found' });
+    return;
+  }
+  await prisma.layout.delete({ where: { id: req.params.id } }); // placements cascade
+  res.json({ deleted: req.params.id });
+});
+
 app.put('/api/layouts/:id', async (req, res) => {
   const parsed = layoutUpdateSchema.safeParse(req.body);
   if (!parsed.success) {

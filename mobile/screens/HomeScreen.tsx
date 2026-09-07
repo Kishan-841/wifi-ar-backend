@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -16,10 +17,8 @@ import { useTheme } from '../components/theme';
 import {
   Layout,
   Placement,
-  createLayout,
   getLayout,
   getScan,
-  listLayouts,
   listScans,
   saveLayout,
 } from '../lib/api';
@@ -39,7 +38,7 @@ const BOX_METERS = 0.5;
 
 const GRID_PRESETS = [24, 32, 48];
 
-export default function HomeScreen() {
+export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onBack: () => void }) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
 
@@ -55,6 +54,8 @@ export default function HomeScreen() {
   const [selectedCell, setSelectedCell] = useState<{ scanId: string; cell: PieceCell } | null>(null);
   const [router, setRouter] = useState<{ col: number; row: number } | null>(null);
   const [routerMode, setRouterMode] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   const cols = layout?.cols ?? 32;
   const rows = layout?.rows ?? 32;
@@ -71,10 +72,7 @@ export default function HomeScreen() {
     setStatus('loading');
     setErrorText(null);
     try {
-      // v1: one board — use the newest layout or create it.
-      const summaries = await listLayouts();
-      const lay =
-        summaries.length > 0 ? await getLayout(summaries[0].id) : await createLayout('My home', 32, 32);
+      const lay = await getLayout(layoutId);
 
       const scans = await listScans(); // newest first
       const details = (await Promise.all(scans.map((s) => getScan(s.id)))).filter(
@@ -122,7 +120,7 @@ export default function HomeScreen() {
       setErrorText(String(e));
       setStatus('error');
     }
-  }, []);
+  }, [layoutId]);
 
   useEffect(() => {
     load();
@@ -200,6 +198,7 @@ export default function HomeScreen() {
     setErrorText(null);
     try {
       await saveLayout(layout.id, {
+        name: layout.name,
         cols,
         rows,
         routerCol: router?.col ?? null,
@@ -250,6 +249,33 @@ export default function HomeScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} scrollEnabled={!dragging}>
+      <View style={styles.headerRow}>
+        <Button label="← Homes" variant="ghost" onPress={onBack} />
+        {renaming ? (
+          <TextInput
+            style={[styles.nameInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            autoFocus
+            onSubmitEditing={() => {
+              const n = nameDraft.trim();
+              if (n && layout) setLayout({ ...layout, name: n });
+              setRenaming(false);
+            }}
+          />
+        ) : (
+          <Text
+            style={[styles.homeName, { color: theme.text }]}
+            numberOfLines={1}
+            onPress={() => {
+              setNameDraft(layout?.name ?? '');
+              setRenaming(true);
+            }}
+          >
+            {layout?.name ?? 'Home'} ✎
+          </Text>
+        )}
+      </View>
       {errorText && <Banner color={theme.danger} text={errorText} />}
       {savedFlash && <Banner color={theme.success} text="Home map saved ✓" />}
 
@@ -638,6 +664,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     alignSelf: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  homeName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  nameInput: {
+    flex: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 16,
   },
   pieceActions: {
     flexDirection: 'row',

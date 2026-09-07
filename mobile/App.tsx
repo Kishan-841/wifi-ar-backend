@@ -4,13 +4,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { FadeSlideIn, PressableScale } from './components/anim';
 import { ThemeProvider, useTheme } from './components/theme';
-import ArScreen from './screens/ArScreen';
-import HomeScreen from './screens/HomeScreen';
+import HomeListScreen from './screens/HomeListScreen';
 import MeasureScreen from './screens/MeasureScreen';
-import ScansScreen from './screens/ScansScreen';
 import WifiScreen from './screens/WifiScreen';
 
-type Tab = 'wifi' | 'ar' | 'measure' | 'scans' | 'home';
+// The AR debug screen (screens/ArScreen.tsx) is kept for the future in-camera
+// signal overlay but is not routed yet.
+type Tab = 'wifi' | 'measure' | 'home';
 
 export default function App() {
   return (
@@ -22,7 +22,7 @@ export default function App() {
 
 function AppShell() {
   const { theme, toggle } = useTheme();
-  const [tab, setTab] = useState<Tab>('wifi');
+  const [tab, setTab] = useState<Tab>('measure');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -35,29 +35,13 @@ function AppShell() {
         </View>
         <View style={styles.tabs}>
           <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
-          <TabButton label="AR" active={tab === 'ar'} onPress={() => setTab('ar')} />
-          <TabButton
-            label="Measure"
-            active={tab === 'measure'}
-            onPress={() => setTab('measure')}
-          />
-          <TabButton label="Scans" active={tab === 'scans'} onPress={() => setTab('scans')} />
+          <TabButton label="Measure" active={tab === 'measure'} onPress={() => setTab('measure')} />
           <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
         </View>
       </View>
 
       <FadeSlideIn key={tab} style={styles.content}>
-        {tab === 'wifi' ? (
-          <WifiScreen />
-        ) : tab === 'ar' ? (
-          <ArScreen />
-        ) : tab === 'measure' ? (
-          <MeasureScreen />
-        ) : tab === 'scans' ? (
-          <ScansScreen />
-        ) : (
-          <HomeScreen />
-        )}
+        {tab === 'wifi' ? <WifiScreen /> : tab === 'measure' ? <MeasureScreen /> : <HomeListScreen />}
       </FadeSlideIn>
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
@@ -119,7 +103,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderRadius: 20,
   },
   tabText: {

@@ -20,6 +20,7 @@ import {
 import { Banner, Button, Row, card } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import ShapeGrid from '../components/ShapeGrid';
+import ScansScreen from './ScansScreen';
 import { useTheme } from '../components/theme';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
 import { ScanSummary, listScans, uploadScan } from '../lib/api';
@@ -74,6 +75,7 @@ export default function MeasureScreen() {
   const [shapeHDraft, setShapeHDraft] = useState('');
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
   const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
+  const [listKey, setListKey] = useState(0);
   const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
 
   /** Guided survey: the walk order defines position; AR only nudges "next box". */
@@ -463,6 +465,119 @@ export default function MeasureScreen() {
 
   const latest = measurements[measurements.length - 1];
 
+  const roomModal = (
+    <Modal
+      visible={roomModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setRoomModalVisible(false)}
+    >
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+          <Text style={[styles.modalTitle, { color: theme.text }]}>
+            {pendingStart ? 'Which room is this scan for?' : 'Which room are you entering?'}
+          </Text>
+          <TextInput
+            style={[styles.modalInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+            value={roomDraft}
+            onChangeText={setRoomDraft}
+            placeholder="e.g. Bedroom"
+            placeholderTextColor={theme.muted}
+            autoFocus
+            onSubmitEditing={pendingStart ? undefined : confirmRoom}
+            blurOnSubmit={false}
+          />
+          {pendingStart && knownRooms.length > 0 && (
+            <View style={styles.chipRow}>
+              {knownRooms.map((r) => (
+                <Text
+                  key={r.id}
+                  style={[styles.roomChip, { backgroundColor: theme.inputBg, color: theme.text }]}
+                  onPress={() => {
+                    setRoomDraft(r.room ?? '');
+                    setShapeWDraft(r.shapeW != null ? String(r.shapeW) : '');
+                    setShapeHDraft(r.shapeH != null ? String(r.shapeH) : '');
+                  }}
+                >
+                  ↻ {r.room}
+                </Text>
+              ))}
+            </View>
+          )}
+          {pendingStart && (
+            <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
+              Stand in any corner to begin. The app highlights each box in turn —
+              step into it, hold still, and it records. Skip boxes blocked by furniture.
+            </Text>
+          )}
+          {pendingStart && (
+            <View style={styles.shapeRow}>
+              <Text style={{ color: theme.muted, fontSize: 13, flex: 1 }}>
+                Room size (boxes) — required
+              </Text>
+              <TextInput
+                style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+                value={shapeWDraft}
+                onChangeText={setShapeWDraft}
+                placeholder="W"
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+              <Text style={{ color: theme.muted }}>×</Text>
+              <TextInput
+                style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+                value={shapeHDraft}
+                onChangeText={setShapeHDraft}
+                placeholder="H"
+                placeholderTextColor={theme.muted}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            </View>
+          )}
+          <Button
+            label={pendingStart ? 'Start scan' : 'Set room'}
+            disabled={
+              pendingStart &&
+              !(parseInt(shapeWDraft, 10) > 0 && parseInt(shapeHDraft, 10) > 0)
+            }
+            onPress={confirmRoom}
+          />
+          <Button
+            label="Cancel"
+            variant="ghost"
+            onPress={() => {
+              setRoomModalVisible(false);
+              setPendingStart(false);
+            }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // Idle: no scan in progress and nothing collected — show the saved rooms
+  // list right here (one place for everything about rooms).
+  if (!running && measurements.length === 0) {
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.idleScroll}>
+          <View style={card(theme)}>
+            <Text style={[styles.idleTitle, { color: theme.text }]}>Scan a room</Text>
+            <Text style={{ color: theme.muted, fontSize: 13, marginTop: 4 }}>
+              Name the room, enter its size in boxes, then follow the highlighted boxes.
+            </Text>
+            <Button label="Start new scan" onPress={startStop} />
+          </View>
+          <Text style={[styles.idleSection, { color: theme.muted }]}>Saved rooms</Text>
+          <ScansScreen embedded key={listKey} />
+        </ScrollView>
+        {roomModal}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {running ? (
@@ -568,7 +683,19 @@ export default function MeasureScreen() {
                 Starting again begins a fresh scan — upload or dump this one first to keep it.
               </Text>
               {upload.state === 'done' ? (
-                <Banner color={theme.success} text={`Uploaded ✓  scan ${upload.id.slice(0, 8)}…`} />
+                <>
+                  <Banner color={theme.success} text="Room saved ✓" />
+                  <Button
+                    label="Done"
+                    onPress={() => {
+                      clearAll();
+                      setUpload({ state: 'idle' });
+                      setGuided(null);
+                      setCurrentShape(null);
+                      setListKey((k) => k + 1);
+                    }}
+                  />
+                </>
               ) : (
                 <Button
                   label="Upload scan to server"
@@ -626,95 +753,7 @@ export default function MeasureScreen() {
         )}
       </View>
 
-      <Modal
-        visible={roomModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRoomModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
-              {pendingStart ? 'Which room is this scan for?' : 'Which room are you entering?'}
-            </Text>
-            <TextInput
-              style={[styles.modalInput, { backgroundColor: theme.inputBg, color: theme.text }]}
-              value={roomDraft}
-              onChangeText={setRoomDraft}
-              placeholder="e.g. Bedroom"
-              placeholderTextColor={theme.muted}
-              autoFocus
-              onSubmitEditing={pendingStart ? undefined : confirmRoom}
-              blurOnSubmit={false}
-            />
-            {pendingStart && knownRooms.length > 0 && (
-              <View style={styles.chipRow}>
-                {knownRooms.map((r) => (
-                  <Text
-                    key={r.id}
-                    style={[styles.roomChip, { backgroundColor: theme.inputBg, color: theme.text }]}
-                    onPress={() => {
-                      setRoomDraft(r.room ?? '');
-                      setShapeWDraft(r.shapeW != null ? String(r.shapeW) : '');
-                      setShapeHDraft(r.shapeH != null ? String(r.shapeH) : '');
-                    }}
-                  >
-                    ↻ {r.room}
-                  </Text>
-                ))}
-              </View>
-            )}
-            {pendingStart && (
-              <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
-                Stand in any corner to begin. The app highlights each box in turn —
-                step into it, hold still, and it records. Skip boxes blocked by furniture.
-              </Text>
-            )}
-            {pendingStart && (
-              <View style={styles.shapeRow}>
-                <Text style={{ color: theme.muted, fontSize: 13, flex: 1 }}>
-                  Room size (boxes) — required
-                </Text>
-                <TextInput
-                  style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
-                  value={shapeWDraft}
-                  onChangeText={setShapeWDraft}
-                  placeholder="W"
-                  placeholderTextColor={theme.muted}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                />
-                <Text style={{ color: theme.muted }}>×</Text>
-                <TextInput
-                  style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
-                  value={shapeHDraft}
-                  onChangeText={setShapeHDraft}
-                  placeholder="H"
-                  placeholderTextColor={theme.muted}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                />
-              </View>
-            )}
-            <Button
-              label={pendingStart ? 'Start scan' : 'Set room'}
-              disabled={
-                pendingStart &&
-                !(parseInt(shapeWDraft, 10) > 0 && parseInt(shapeHDraft, 10) > 0)
-              }
-              onPress={confirmRoom}
-            />
-            <Button
-              label="Cancel"
-              variant="ghost"
-              onPress={() => {
-                setRoomModalVisible(false);
-                setPendingStart(false);
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
+      {roomModal}
     </View>
   );
 }
@@ -749,6 +788,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'flex-end',
     padding: 12,
+  },
+  idleScroll: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  idleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  idleSection: {
+    fontSize: 13,
+    marginTop: 20,
+    marginBottom: 4,
   },
   recordingRow: {
     flexDirection: 'row',

@@ -9,7 +9,8 @@ import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/
 import { GridCell, addToGrid } from '../lib/grid';
 import { summarizeRooms } from '../lib/measurement';
 
-export default function ScansScreen() {
+export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
+  const Container: any = embedded ? View : ScrollView;
   const { theme } = useTheme();
   const [scans, setScans] = useState<ScanSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +62,8 @@ export default function ScansScreen() {
     );
 
     return (
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Button label="← Back to scans" variant="ghost" onPress={() => setSelected(null)} />
+      <Container contentContainerStyle={embedded ? undefined : styles.scroll}>
+        <Button label="← Back to rooms" variant="ghost" onPress={() => setSelected(null)} />
         <View style={card(theme)}>
           <Row label="Network" value={selected.ssid ?? '—'} />
           <Row label="When" value={new Date(selected.startedAt).toLocaleString()} />
@@ -97,16 +98,16 @@ export default function ScansScreen() {
             />
           ))}
         </View>
-      </ScrollView>
+      </Container>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <Button label="Refresh" variant="ghost" loading={loading} onPress={refresh} />
+    <Container contentContainerStyle={embedded ? undefined : styles.scroll}>
+      {!embedded && <Button label="Refresh" variant="ghost" loading={loading} onPress={refresh} />}
       {error && <Banner color={theme.danger} text={error} />}
       {scans?.length === 0 && (
-        <Banner color={theme.info} text="No scans saved yet — upload one from the Measure tab." />
+        <Banner color={theme.info} text="No rooms saved yet — scan one above." />
       )}
       {scans?.map((s, i) => (
         <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>
@@ -138,7 +139,7 @@ export default function ScansScreen() {
           </PressableScale>
         </FadeSlideIn>
       ))}
-    </ScrollView>
+    </Container>
   );
 }
 

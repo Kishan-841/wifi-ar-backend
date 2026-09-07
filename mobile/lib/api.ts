@@ -87,6 +87,7 @@ export async function createLayout(name: string, cols: number, rows: number): Pr
 export async function saveLayout(
   id: string,
   update: {
+    name?: string;
     cols?: number;
     rows?: number;
     routerCol?: number | null;
@@ -101,6 +102,13 @@ export async function saveLayout(
   });
   if (!response.ok) throw new Error(`layout save failed (HTTP ${response.status})`);
   return response.json();
+}
+
+export async function deleteLayout(id: string): Promise<void> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
 export async function deleteScan(id: string): Promise<void> {
