@@ -21,7 +21,7 @@ import { Banner, Button, Row, card } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import { useTheme } from '../components/theme';
 import { GridCell, GridSummary, addToGrid, summarizeGrid } from '../lib/grid';
-import { uploadScan } from '../lib/api';
+import { ScanSummary, listScans, uploadScan } from '../lib/api';
 import {
   Measurement,
   assessMeasurement,
@@ -57,6 +57,10 @@ export default function MeasureScreen() {
   const [roomDraft, setRoomDraft] = useState('');
   /** True while the room modal is acting as the "name room, then start" gate. */
   const [pendingStart, setPendingStart] = useState(false);
+  const [shapeWDraft, setShapeWDraft] = useState('');
+  const [shapeHDraft, setShapeHDraft] = useState('');
+  const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
+  const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
 
   const [upload, setUpload] = useState<
     { state: 'idle' } | { state: 'sending' } | { state: 'done'; id: string } | { state: 'error'; message: string }
@@ -204,8 +208,20 @@ export default function MeasureScreen() {
     }
     // Name the room first (one scan = one room piece for the Home board).
     setRoomDraft('');
+    setShapeWDraft('');
+    setShapeHDraft('');
     setPendingStart(true);
     setRoomModalVisible(true);
+    // Offer existing rooms for re-scanning (newest scan per room name).
+    listScans()
+      .then((scans) => {
+        const seen = new Map<string, ScanSummary>();
+        for (const sc of scans) {
+          if (sc.room && !seen.has(sc.room)) seen.set(sc.room, sc);
+        }
+        setKnownRooms(Array.from(seen.values()));
+      })
+      .catch(() => setKnownRooms([]));
   }, [running]);
 
   const doUpload = useCallback(async () => {
@@ -215,6 +231,8 @@ export default function MeasureScreen() {
         startedAt: scanStartRef.current,
         endedAt: scanEndRef.current || Date.now(),
         ssid: measurements[0]?.ssid ?? null,
+        shapeW: shapeRef.current.w,
+        shapeH: shapeRef.current.h,
         measurements,
       });
       setUpload({ state: 'done', id: result.id });
@@ -229,6 +247,12 @@ export default function MeasureScreen() {
     setRoomModalVisible(false);
     if (pendingStart) {
       setPendingStart(false);
+      const w = parseInt(shapeWDraft, 10);
+      const h = parseInt(shapeHDraft, 10);
+      shapeRef.current = {
+        w: Number.isFinite(w) && w > 0 ? w : null,
+        h: Number.isFinite(h) && h > 0 ? h : null,
+      };
       reallyStart(name.length > 0 ? name : null);
       return;
     }
@@ -394,6 +418,49 @@ export default function MeasureScreen() {
               autoFocus
               onSubmitEditing={confirmRoom}
             />
+            {pendingStart && knownRooms.length > 0 && (
+              <View style={styles.chipRow}>
+                {knownRooms.map((r) => (
+                  <Text
+                    key={r.id}
+                    style={[styles.roomChip, { backgroundColor: theme.inputBg, color: theme.text }]}
+                    onPress={() => {
+                      setRoomDraft(r.room ?? '');
+                      setShapeWDraft(r.shapeW != null ? String(r.shapeW) : '');
+                      setShapeHDraft(r.shapeH != null ? String(r.shapeH) : '');
+                    }}
+                  >
+                    ↻ {r.room}
+                  </Text>
+                ))}
+              </View>
+            )}
+            {pendingStart && (
+              <View style={styles.shapeRow}>
+                <Text style={{ color: theme.muted, fontSize: 13, flex: 1 }}>
+                  Room size (boxes, optional)
+                </Text>
+                <TextInput
+                  style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+                  value={shapeWDraft}
+                  onChangeText={setShapeWDraft}
+                  placeholder="W"
+                  placeholderTextColor={theme.muted}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+                <Text style={{ color: theme.muted }}>×</Text>
+                <TextInput
+                  style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
+                  value={shapeHDraft}
+                  onChangeText={setShapeHDraft}
+                  placeholder="H"
+                  placeholderTextColor={theme.muted}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+              </View>
+            )}
             <Button label={pendingStart ? 'Start scan' : 'Set room'} onPress={confirmRoom} />
             <Button
               label="Cancel"
@@ -500,6 +567,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 10,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  roomChip: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: 13,
+    overflow: 'hidden',
+  },
+  shapeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  shapeInput: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    width: 52,
+    textAlign: 'center',
   },
   modalInput: {
     borderRadius: 8,

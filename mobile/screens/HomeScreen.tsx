@@ -22,7 +22,15 @@ import {
   listScans,
   saveLayout,
 } from '../lib/api';
-import { RoomPiece, buildPiece, exposedEdges, rotatedCells, rotatedSize } from '../lib/roomPiece';
+import { fitPieceToRect } from '../lib/roomFit';
+import {
+  RoomPiece,
+  buildPiece,
+  exposedEdges,
+  roomNameOf,
+  rotatedCells,
+  rotatedSize,
+} from '../lib/roomPiece';
 
 const GRID_PRESETS = [24, 32, 48];
 
@@ -60,16 +68,41 @@ export default function HomeScreen() {
       const lay =
         summaries.length > 0 ? await getLayout(summaries[0].id) : await createLayout('My home', 32, 32);
 
-      const scans = await listScans();
-      const details = await Promise.all(scans.map((s) => getScan(s.id)));
-      const pieceMap = new Map<string, RoomPiece>();
+      const scans = await listScans(); // newest first
+      const details = (await Promise.all(scans.map((s) => getScan(s.id)))).filter(
+        (d) => d.measurements.length > 0
+      );
+
+      // One piece per room name — the NEWEST scan of a room replaces older
+      // ones in the tray, and placements of superseded scans are remapped so
+      // a re-scanned room keeps its position on the board.
+      const scanRoomKey = new Map<string, string>();
+      const latestByRoom = new Map<string, (typeof details)[number]>();
       for (const d of details) {
-        if (d.measurements.length > 0) pieceMap.set(d.id, buildPiece(d));
+        const key = roomNameOf(d) ?? d.id;
+        scanRoomKey.set(d.id, key);
+        if (!latestByRoom.has(key)) latestByRoom.set(key, d);
+      }
+
+      const pieceMap = new Map<string, RoomPiece>();
+      const latestScanIdByRoom = new Map<string, string>();
+      for (const [key, d] of latestByRoom) {
+        const name = roomNameOf(d) ?? d.ssid ?? 'Room';
+        const piece =
+          d.shapeW != null && d.shapeH != null
+            ? fitPieceToRect(d.measurements, d.shapeW, d.shapeH, d.id, name)
+            : buildPiece(d);
+        pieceMap.set(d.id, piece);
+        latestScanIdByRoom.set(key, d.id);
       }
 
       const placementMap = new Map<string, Placement>();
       for (const p of lay.placements) {
-        if (pieceMap.has(p.scanId)) placementMap.set(p.scanId, p);
+        const key = scanRoomKey.get(p.scanId);
+        const latestId = key ? latestScanIdByRoom.get(key) : undefined;
+        if (latestId && pieceMap.has(latestId) && !placementMap.has(latestId)) {
+          placementMap.set(latestId, { ...p, scanId: latestId });
+        }
       }
 
       setLayout(lay);
@@ -409,7 +442,7 @@ function PlacedPiece({
               width: cellPx,
               height: cellPx,
               backgroundColor: overlapping ? '#EF4444' : cell.color,
-              opacity: overlapping ? 0.8 : selected ? 1 : 0.9,
+              opacity: overlapping ? 0.8 : cell.interpolated ? 0.45 : selected ? 1 : 0.9,
               borderTopWidth: top ? 2 : 0,
               borderBottomWidth: bottom ? 2 : 0,
               borderLeftWidth: left ? 2 : 0,
@@ -442,6 +475,7 @@ function MiniPiece({ piece }: { piece: RoomPiece }) {
             width: px - 0.5,
             height: px - 0.5,
             backgroundColor: c.color,
+            opacity: c.interpolated ? 0.45 : 1,
             borderRadius: 1,
           }}
         />

@@ -24,6 +24,8 @@ const scanUploadSchema = z.object({
   startedAt: z.number().int().positive(),
   endedAt: z.number().int().positive(),
   ssid: z.string().nullable(),
+  shapeW: z.number().int().min(1).max(100).nullable().optional(),
+  shapeH: z.number().int().min(1).max(100).nullable().optional(),
   measurements: z.array(measurementSchema).min(1).max(50000),
 });
 
@@ -37,9 +39,15 @@ app.post('/api/scans', async (req, res) => {
     res.status(400).json({ error: 'invalid scan payload', details: parsed.error.issues.slice(0, 5) });
     return;
   }
-  const { startedAt, endedAt, ssid, measurements } = parsed.data;
+  const { startedAt, endedAt, ssid, shapeW, shapeH, measurements } = parsed.data;
   const scan = await prisma.scan.create({
-    data: { startedAt: new Date(startedAt), endedAt: new Date(endedAt), ssid },
+    data: {
+      startedAt: new Date(startedAt),
+      endedAt: new Date(endedAt),
+      ssid,
+      shapeW: shapeW ?? null,
+      shapeH: shapeH ?? null,
+    },
   });
   await prisma.measurement.createMany({
     data: measurements.map((m) => ({
@@ -62,7 +70,11 @@ app.post('/api/scans', async (req, res) => {
 app.get('/api/scans', async (_req, res) => {
   const scans = await prisma.scan.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { measurements: true } } },
+    include: {
+      _count: { select: { measurements: true } },
+      // One measurement is enough to expose the scan's room tag in the list.
+      measurements: { select: { room: true }, where: { room: { not: null } }, take: 1 },
+    },
   });
   res.json(
     scans.map((s) => ({
@@ -70,9 +82,22 @@ app.get('/api/scans', async (_req, res) => {
       startedAt: s.startedAt,
       endedAt: s.endedAt,
       ssid: s.ssid,
+      shapeW: s.shapeW,
+      shapeH: s.shapeH,
+      room: s.measurements[0]?.room ?? null,
       measurementCount: s._count.measurements,
     }))
   );
+});
+
+app.delete('/api/scans/:id', async (req, res) => {
+  const scan = await prisma.scan.findUnique({ where: { id: req.params.id } });
+  if (!scan) {
+    res.status(404).json({ error: 'scan not found' });
+    return;
+  }
+  await prisma.scan.delete({ where: { id: req.params.id } }); // measurements cascade
+  res.json({ deleted: req.params.id });
 });
 
 app.get('/api/scans/:id', async (req, res) => {

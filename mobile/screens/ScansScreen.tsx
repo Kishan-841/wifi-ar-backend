@@ -5,7 +5,7 @@ import { FadeSlideIn, PressableScale } from '../components/anim';
 import { Banner, Button, Row, card } from '../components/DebugUI';
 import { useTheme } from '../components/theme';
 import GridMap from '../components/GridMap';
-import { ScanDetail, ScanSummary, getScan, listScans } from '../lib/api';
+import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/api';
 import { GridCell, addToGrid } from '../lib/grid';
 import { summarizeRooms } from '../lib/measurement';
 
@@ -73,6 +73,20 @@ export default function ScansScreen() {
         <View style={card(theme)}>
           <GridMap cells={cells} height={260} showLegend />
         </View>
+
+        <Button
+          label="Delete this scan"
+          variant="ghost"
+          onPress={async () => {
+            try {
+              await deleteScan(selected.id);
+              setSelected(null);
+              refresh();
+            } catch (e) {
+              setError(String(e));
+            }
+          }}
+        />
 
         <View style={card(theme)}>
           {summarizeRooms(selected.measurements).map((r) => (

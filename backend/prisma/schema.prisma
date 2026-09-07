@@ -15,6 +15,9 @@ model Scan {
   startedAt    DateTime
   endedAt      DateTime
   ssid         String?
+  /** User-declared room footprint in grid boxes (0.5 m cells), optional. */
+  shapeW       Int?
+  shapeH       Int?
   createdAt    DateTime      @default(now())
   measurements Measurement[]
 }

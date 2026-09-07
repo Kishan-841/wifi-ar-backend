@@ -26,6 +26,9 @@ export type ScanSummary = {
   startedAt: string;
   endedAt: string;
   ssid: string | null;
+  shapeW: number | null;
+  shapeH: number | null;
+  room: string | null;
   measurementCount: number;
 };
 
@@ -34,6 +37,8 @@ export type ScanDetail = {
   startedAt: string;
   endedAt: string;
   ssid: string | null;
+  shapeW: number | null;
+  shapeH: number | null;
   measurements: Measurement[];
 };
 
@@ -90,6 +95,13 @@ export async function saveLayout(
   return response.json();
 }
 
+export async function deleteScan(id: string): Promise<void> {
+  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
+}
+
 export async function listScans(): Promise<ScanSummary[]> {
   const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`);
   if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);
@@ -115,6 +127,8 @@ export async function uploadScan(input: {
   startedAt: number;
   endedAt: number;
   ssid: string | null;
+  shapeW?: number | null;
+  shapeH?: number | null;
   measurements: Measurement[];
 }): Promise<UploadResult> {
   const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`, {

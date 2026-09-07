@@ -13,6 +13,8 @@ export type PieceCell = {
   dx: number;
   dz: number;
   color: string;
+  /** True when the cell's value was filled from a neighbor, not measured. */
+  interpolated?: boolean;
 };
 
 export type RoomPiece = {
@@ -22,6 +24,15 @@ export type RoomPiece = {
   h: number;
   cells: PieceCell[];
 };
+
+/** Most common room tag in a scan, else null. */
+export function roomNameOf(scan: ScanDetail): string | null {
+  const counts = new Map<string, number>();
+  for (const m of scan.measurements) {
+    if (m.room) counts.set(m.room, (counts.get(m.room) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 export function buildPiece(scan: ScanDetail): RoomPiece {
   const grid = new Map<string, GridCell>();
@@ -33,12 +44,7 @@ export function buildPiece(scan: ScanDetail): RoomPiece {
   const maxCx = Math.max(...cells.map((c) => c.cx));
   const maxCz = Math.max(...cells.map((c) => c.cz));
 
-  // Name: the most common room tag, else the network name.
-  const counts = new Map<string, number>();
-  for (const m of scan.measurements) {
-    if (m.room) counts.set(m.room, (counts.get(m.room) ?? 0) + 1);
-  }
-  const topRoom = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const topRoom = roomNameOf(scan);
 
   return {
     scanId: scan.id,
