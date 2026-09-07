@@ -13,6 +13,8 @@ export type PieceCell = {
   dx: number;
   dz: number;
   color: string;
+  /** Median RSSI for this box (dBm). */
+  rssi: number;
   /** True when the cell's value was filled from a neighbor, not measured. */
   interpolated?: boolean;
 };
@@ -55,6 +57,7 @@ export function buildPiece(scan: ScanDetail): RoomPiece {
       dx: c.cx - minCx,
       dz: c.cz - minCz,
       color: rssiToColor(c.medianRssi),
+      rssi: c.medianRssi,
     })),
   };
 }

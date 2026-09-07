@@ -129,6 +129,8 @@ const layoutUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   cols: z.number().int().min(4).max(200).optional(),
   rows: z.number().int().min(4).max(200).optional(),
+  routerCol: z.number().int().min(0).nullable().optional(),
+  routerRow: z.number().int().min(0).nullable().optional(),
   placements: z.array(placementSchema).max(200),
 });
 

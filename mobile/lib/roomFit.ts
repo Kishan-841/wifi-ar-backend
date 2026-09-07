@@ -109,11 +109,11 @@ export function fixedRectPiece(
     for (let dx = 0; dx < w; dx++) {
       const hit = measured.find((c) => c.dx === dx && c.dz === dz);
       if (hit) {
-        cells.push({ dx, dz, color: rssiToColor(hit.rssi), interpolated: false });
+        cells.push({ dx, dz, color: rssiToColor(hit.rssi), rssi: hit.rssi, interpolated: false });
         continue;
       }
       if (measured.length === 0) {
-        cells.push({ dx, dz, color: rssiToColor(-127), interpolated: true });
+        cells.push({ dx, dz, color: rssiToColor(-127), rssi: -127, interpolated: true });
         continue;
       }
       let best = measured[0];
@@ -125,7 +125,7 @@ export function fixedRectPiece(
           best = c;
         }
       }
-      cells.push({ dx, dz, color: rssiToColor(best.rssi), interpolated: true });
+      cells.push({ dx, dz, color: rssiToColor(best.rssi), rssi: best.rssi, interpolated: true });
     }
   }
 

@@ -49,6 +49,8 @@ export type Layout = {
   name: string;
   cols: number;
   rows: number;
+  routerCol: number | null;
+  routerRow: number | null;
   placements: Placement[];
 };
 
@@ -79,12 +81,18 @@ export async function createLayout(name: string, cols: number, rows: number): Pr
     body: JSON.stringify({ name, cols, rows }),
   });
   if (!response.ok) throw new Error(`layout create failed (HTTP ${response.status})`);
-  return { ...(await response.json()), placements: [] };
+  return { routerCol: null, routerRow: null, ...(await response.json()), placements: [] };
 }
 
 export async function saveLayout(
   id: string,
-  update: { cols?: number; rows?: number; placements: Placement[] }
+  update: {
+    cols?: number;
+    rows?: number;
+    routerCol?: number | null;
+    routerRow?: number | null;
+    placements: Placement[];
+  }
 ): Promise<Layout> {
   const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`, {
     method: 'PUT',

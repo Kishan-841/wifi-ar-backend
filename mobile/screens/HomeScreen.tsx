@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   PanResponder,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,8 +23,10 @@ import {
   listScans,
   saveLayout,
 } from '../lib/api';
+import { rssiBandOf } from '../lib/heatmapColor';
 import { fixedRectPiece } from '../lib/roomFit';
 import {
+  PieceCell,
   RoomPiece,
   buildPiece,
   exposedEdges,
@@ -31,6 +34,8 @@ import {
   rotatedCells,
   rotatedSize,
 } from '../lib/roomPiece';
+
+const BOX_METERS = 0.5;
 
 const GRID_PRESETS = [24, 32, 48];
 
@@ -47,6 +52,9 @@ export default function HomeScreen() {
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<{ scanId: string; cell: PieceCell } | null>(null);
+  const [router, setRouter] = useState<{ col: number; row: number } | null>(null);
+  const [routerMode, setRouterMode] = useState(false);
 
   const cols = layout?.cols ?? 32;
   const rows = layout?.rows ?? 32;
@@ -108,6 +116,7 @@ export default function HomeScreen() {
       setLayout(lay);
       setPieces(pieceMap);
       setPlacements(placementMap);
+      setRouter(lay.routerCol != null && lay.routerRow != null ? { col: lay.routerCol, row: lay.routerRow } : null);
       setStatus('ready');
     } catch (e) {
       setErrorText(String(e));
@@ -136,6 +145,23 @@ export default function HomeScreen() {
     });
     setSelected(null);
   }, []);
+
+  const onCellPress = useCallback(
+    (scanId: string, cell: PieceCell) => {
+      const p = placementsRef.current.get(scanId);
+      if (!p) return;
+      if (routerMode) {
+        const piece = pieces.get(scanId);
+        const rc = piece ? rotatedCells(piece, p.rotation).find((c) => c.dx === cell.dx && c.dz === cell.dz) : null;
+        setRouter({ col: p.col + (rc?.dx ?? cell.dx), row: p.row + (rc?.dz ?? cell.dz) });
+        setRouterMode(false);
+        return;
+      }
+      setSelected(scanId);
+      setSelectedCell({ scanId, cell });
+    },
+    [routerMode, pieces]
+  );
 
   const rotateSelected = useCallback(() => {
     if (!selected) return;
@@ -176,6 +202,8 @@ export default function HomeScreen() {
       await saveLayout(layout.id, {
         cols,
         rows,
+        routerCol: router?.col ?? null,
+        routerRow: router?.row ?? null,
         placements: Array.from(placements.values()),
       });
       setSavedFlash(true);
@@ -185,7 +213,7 @@ export default function HomeScreen() {
     } finally {
       setSaving(false);
     }
-  }, [layout, cols, rows, placements]);
+  }, [layout, cols, rows, placements, router]);
 
   // Occupancy for overlap warnings.
   const overlapKeys = useMemo(() => {
@@ -277,6 +305,12 @@ export default function HomeScreen() {
               selected={selected === p.scanId}
               overlapKeys={overlapKeys}
               onSelect={() => setSelected(p.scanId)}
+              onCellPress={(cell) => onCellPress(p.scanId, cell)}
+              selectedCellKey={
+                selectedCell?.scanId === p.scanId
+                  ? `${selectedCell.cell.dx},${selectedCell.cell.dz}`
+                  : null
+              }
               onDragState={setDragging}
               onMove={(col, row) =>
                 setPlacements((map) =>
@@ -288,7 +322,71 @@ export default function HomeScreen() {
             />
           );
         })}
+        {router && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: router.col * cellPx,
+              top: router.row * cellPx,
+              width: cellPx,
+              height: cellPx,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ fontSize: Math.max(10, cellPx * 0.9) }}>📡</Text>
+          </View>
+        )}
       </View>
+
+      {routerMode && (
+        <Banner color={theme.info} text="Tap the box where your Wi-Fi router is" />
+      )}
+
+      {/* Reading details */}
+      {selectedCell && (() => {
+        const piece = pieces.get(selectedCell.scanId);
+        const p = placements.get(selectedCell.scanId);
+        if (!piece || !p) return null;
+        const c = selectedCell.cell;
+        const rc = rotatedCells(piece, p.rotation).find((x) => x.dx === c.dx && x.dz === c.dz) ?? c;
+        const boardCol = p.col + rc.dx;
+        const boardRow = p.row + rc.dz;
+        const band = rssiBandOf(c.rssi);
+        const dist = router
+          ? Math.hypot(boardCol - router.col, boardRow - router.row) * BOX_METERS
+          : null;
+        const routerRoom = router
+          ? Array.from(placements.values()).find((pl) => {
+              const pc = pieces.get(pl.scanId);
+              if (!pc) return false;
+              return rotatedCells(pc, pl.rotation).some(
+                (x) => pl.col + x.dx === router.col && pl.row + x.dz === router.row
+              );
+            })
+          : null;
+        return (
+          <View style={card(theme)}>
+            <View style={styles.readingHeader}>
+              <View style={[styles.readingSwatch, { backgroundColor: band.color }]} />
+              <Text style={[styles.readingTitle, { color: theme.text }]}>
+                {piece.name} · box {rc.dx + 1},{rc.dz + 1}
+              </Text>
+            </View>
+            <Text style={[styles.readingBig, { color: theme.accent }]}>{c.rssi} dBm</Text>
+            <Text style={{ color: theme.muted, fontSize: 13 }}>
+              {band.label} · {c.interpolated ? 'estimated from neighbors' : 'measured'}
+            </Text>
+            {dist != null && (
+              <Text style={{ color: theme.muted, fontSize: 13, marginTop: 4 }}>
+                {dist.toFixed(1)} m from the router
+                {routerRoom ? ` (in ${pieces.get(routerRoom.scanId)?.name ?? 'a room'})` : ''}
+              </Text>
+            )}
+          </View>
+        );
+      })()}
 
       {/* Selected piece actions */}
       {selected && placements.has(selected) && (
@@ -297,6 +395,17 @@ export default function HomeScreen() {
           <Button label="Remove from board" variant="ghost" onPress={() => removeFromBoard(selected)} />
         </View>
       )}
+
+      <View style={styles.pieceActions}>
+        <Button
+          label={routerMode ? 'Cancel router placement' : router ? '📡 Move router' : '📡 Set router position'}
+          variant={routerMode ? 'ghost' : 'primary'}
+          onPress={() => setRouterMode((m) => !m)}
+        />
+        {router && !routerMode && (
+          <Button label="Clear router" variant="ghost" onPress={() => setRouter(null)} />
+        )}
+      </View>
 
       {/* Grid size */}
       <View style={card(theme)}>
@@ -360,6 +469,8 @@ function PlacedPiece({
   selected,
   overlapKeys,
   onSelect,
+  onCellPress,
+  selectedCellKey,
   onMove,
   onDragState,
   boardCols,
@@ -371,6 +482,8 @@ function PlacedPiece({
   selected: boolean;
   overlapKeys: Set<string>;
   onSelect: () => void;
+  onCellPress: (cell: PieceCell) => void;
+  selectedCellKey: string | null;
   onMove: (col: number, row: number) => void;
   onDragState: (d: boolean) => void;
   boardCols: number;
@@ -383,7 +496,8 @@ function PlacedPiece({
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      // Taps go to the cells (Pressable); a real drag steals the responder.
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) + Math.abs(g.dy) > 6,
       onPanResponderGrant: () => {
         const { placement } = propsRef.current;
@@ -432,24 +546,49 @@ function PlacedPiece({
         const overlapping = overlapKeys.has(
           `${placement.col + cell.dx},${placement.row + cell.dz}`
         );
+        const isSelectedCell = selectedCellKey === `${cell.dx},${cell.dz}`;
         return (
-          <View
+          <Pressable
             key={`${cell.dx},${cell.dz}`}
+            onPress={() => onCellPress(cell)}
             style={{
               position: 'absolute',
               left: cell.dx * cellPx,
               top: cell.dz * cellPx,
               width: cellPx,
               height: cellPx,
-              backgroundColor: overlapping ? '#EF4444' : cell.color,
-              opacity: overlapping ? 0.8 : cell.interpolated ? 0.45 : selected ? 1 : 0.9,
-              borderTopWidth: top ? 2 : 0,
-              borderBottomWidth: bottom ? 2 : 0,
-              borderLeftWidth: left ? 2 : 0,
-              borderRightWidth: right ? 2 : 0,
-              borderColor: selected ? '#ffffff' : 'rgba(0,0,0,0.55)',
+              padding: 0.5,
             }}
-          />
+          >
+            <View
+              style={{
+                flex: 1,
+                borderRadius: 2,
+                backgroundColor: overlapping ? '#EF4444' : cell.color,
+                opacity: overlapping ? 0.8 : cell.interpolated ? 0.45 : selected ? 1 : 0.9,
+                borderTopWidth: top ? 2 : 0,
+                borderBottomWidth: bottom ? 2 : 0,
+                borderLeftWidth: left ? 2 : 0,
+                borderRightWidth: right ? 2 : 0,
+                borderColor: selected ? '#ffffff' : 'rgba(0,0,0,0.55)',
+              }}
+            />
+            {isSelectedCell && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  left: 1,
+                  top: 1,
+                  right: 1,
+                  bottom: 1,
+                  borderWidth: 2,
+                  borderColor: '#ffffff',
+                  borderRadius: 3,
+                }}
+              />
+            )}
+          </Pressable>
         );
       })}
       <Text style={styles.pieceLabel} numberOfLines={1}>
@@ -509,6 +648,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     marginBottom: 10,
+  },
+  readingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  readingSwatch: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+  },
+  readingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  readingBig: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 4,
+    fontVariant: ['tabular-nums'],
   },
   presetRow: {
     flexDirection: 'row',

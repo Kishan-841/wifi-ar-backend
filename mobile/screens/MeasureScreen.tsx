@@ -666,8 +666,8 @@ export default function MeasureScreen() {
             )}
             {pendingStart && (
               <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
-                Start in a corner of the room, facing the far wall — the grid extends
-                ahead of you and to your right. Readings outside it are ignored.
+                Stand in any corner to begin. The app highlights each box in turn —
+                step into it, hold still, and it records. Skip boxes blocked by furniture.
               </Text>
             )}
             {pendingStart && (

@@ -27,6 +27,9 @@ model Layout {
   name       String
   cols       Int
   rows       Int
+  /** Router marker in board coordinates, optional. */
+  routerCol  Int?
+  routerRow  Int?
   createdAt  DateTime        @default(now())
   placements RoomPlacement[]
 }
