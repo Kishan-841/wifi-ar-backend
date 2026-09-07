@@ -271,14 +271,6 @@ export default function MeasureScreen() {
     }
   }, [roomDraft, pendingStart, reallyStart]);
 
-  if (permission !== 'granted') {
-    return (
-      <View style={styles.permissionContainer}>
-        <Banner color={theme.warn} text="Camera + location permissions are required to measure." />
-      </View>
-    );
-  }
-
   // Live fit: map the trail so far into the declared grid — recomputed as the
   // walk grows, so the boxes fill in and settle as coverage improves.
   const liveFit = useMemo(() => {
@@ -306,6 +298,15 @@ export default function MeasureScreen() {
 
   const shapeDot =
     liveFit && livePose ? applyFit(livePose.x, livePose.z, liveFit) : null;
+
+
+  if (permission !== 'granted') {
+    return (
+      <View style={styles.permissionContainer}>
+        <Banner color={theme.warn} text="Camera + location permissions are required to measure." />
+      </View>
+    );
+  }
 
   const latest = measurements[measurements.length - 1];
 
