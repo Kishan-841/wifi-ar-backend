@@ -29,7 +29,7 @@ import {
   buildMeasurement,
   summarizeRooms,
 } from '../lib/measurement';
-import { applyFit, computeFit } from '../lib/roomFit';
+import { fixedGridBox } from '../lib/roomFit';
 import { rssiToColor } from '../lib/heatmapColor';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
@@ -127,6 +127,12 @@ export default function MeasureScreen() {
       if (!median || median.sampleCount < MIN_SAMPLES) {
         setRejected((n) => n + 1);
         setLastReason(`warming up (${median?.sampleCount ?? 0}/${MIN_SAMPLES} samples)`);
+        return;
+      }
+      const shape = shapeRef.current;
+      if (shape.w != null && shape.h != null && !fixedGridBox(pose!.x, pose!.z, shape.w, shape.h)) {
+        setRejected((n) => n + 1);
+        setLastReason('outside the room grid — ignored');
         return;
       }
 
@@ -271,20 +277,16 @@ export default function MeasureScreen() {
     }
   }, [roomDraft, pendingStart, reallyStart]);
 
-  // Live fit: map the trail so far into the declared grid — recomputed as the
-  // walk grows, so the boxes fill in and settle as coverage improves.
-  const liveFit = useMemo(() => {
-    if (!currentShape || measurements.length < 2) return null;
-    return computeFit(measurements, currentShape.w, currentShape.h);
-  }, [currentShape, measurements]);
-
+  // Fixed-grid live view: the grid is anchored at the scan start; every
+  // measurement maps to one immovable box (or is outside and already ignored).
   const shapeColors = useMemo(() => {
     const map = new Map<string, string>();
-    if (!liveFit) return map;
+    if (!currentShape) return map;
     const values = new Map<string, number[]>();
     for (const m of measurements) {
-      const { dx, dz } = applyFit(m.x, m.z, liveFit);
-      const key = `${dx},${dz}`;
+      const box = fixedGridBox(m.x, m.z, currentShape.w, currentShape.h);
+      if (!box) continue;
+      const key = `${box.dx},${box.dz}`;
       const list = values.get(key) ?? [];
       list.push(m.rssi);
       values.set(key, list);
@@ -294,10 +296,12 @@ export default function MeasureScreen() {
       map.set(key, rssiToColor(sorted[Math.floor(sorted.length / 2)]));
     }
     return map;
-  }, [liveFit, measurements]);
+  }, [currentShape, measurements]);
 
   const shapeDot =
-    liveFit && livePose ? applyFit(livePose.x, livePose.z, liveFit) : null;
+    currentShape && livePose
+      ? fixedGridBox(livePose.x, livePose.z, currentShape.w, currentShape.h)
+      : null;
 
 
   if (permission !== 'granted') {
@@ -331,6 +335,9 @@ export default function MeasureScreen() {
         {running && currentShape && (
           <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
             <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} dot={shapeDot} />
+            {!shapeDot && (
+              <Text style={styles.reasonText}>You are outside the grid — readings ignored</Text>
+            )}
           </View>
         )}
         {running && !currentShape && cells.length > 0 && (
@@ -485,6 +492,12 @@ export default function MeasureScreen() {
                   </Text>
                 ))}
               </View>
+            )}
+            {pendingStart && (shapeWDraft !== '' || shapeHDraft !== '') && (
+              <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
+                Start in a corner of the room, facing the far wall — the grid extends
+                ahead of you and to your right. Readings outside it are ignored.
+              </Text>
             )}
             {pendingStart && (
               <View style={styles.shapeRow}>

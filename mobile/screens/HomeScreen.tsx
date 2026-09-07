@@ -22,7 +22,7 @@ import {
   listScans,
   saveLayout,
 } from '../lib/api';
-import { fitPieceToRect } from '../lib/roomFit';
+import { fixedRectPiece } from '../lib/roomFit';
 import {
   RoomPiece,
   buildPiece,
@@ -90,7 +90,7 @@ export default function HomeScreen() {
         const name = roomNameOf(d) ?? d.ssid ?? 'Room';
         const piece =
           d.shapeW != null && d.shapeH != null
-            ? fitPieceToRect(d.measurements, d.shapeW, d.shapeH, d.id, name)
+            ? fixedRectPiece(d.measurements, d.shapeW, d.shapeH, d.id, name)
             : buildPiece(d);
         pieceMap.set(d.id, piece);
         latestScanIdByRoom.set(key, d.id);
