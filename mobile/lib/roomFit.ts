@@ -15,7 +15,13 @@ const CELL = 0.5;
  * Box (0,0) is centered on the starting point (±half a box of tolerance).
  */
 
-/** Map an AR position to its grid box, or null when outside the grid. */
+/**
+ * Map an AR position to its grid box. A point up to DRIFT_MARGIN boxes outside
+ * clamps to the nearest edge box (mild AR drift shouldn't lose readings);
+ * anything farther out returns null and is discarded.
+ */
+const DRIFT_MARGIN = 1;
+
 export function fixedGridBox(
   x: number,
   z: number,
@@ -24,8 +30,12 @@ export function fixedGridBox(
 ): { dx: number; dz: number } | null {
   const dx = Math.round(x / CELL);
   const dz = Math.round(-z / CELL);
-  if (dx < 0 || dx >= w || dz < 0 || dz >= h) return null;
-  return { dx, dz };
+  if (dx < -DRIFT_MARGIN || dx >= w + DRIFT_MARGIN) return null;
+  if (dz < -DRIFT_MARGIN || dz >= h + DRIFT_MARGIN) return null;
+  return {
+    dx: Math.max(0, Math.min(w - 1, dx)),
+    dz: Math.max(0, Math.min(h - 1, dz)),
+  };
 }
 
 /**

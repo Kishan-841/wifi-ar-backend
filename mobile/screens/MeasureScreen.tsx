@@ -256,9 +256,15 @@ export default function MeasureScreen() {
     setRoomDraft('');
     setRoomModalVisible(false);
     if (pendingStart) {
-      setPendingStart(false);
       const w = parseInt(shapeWDraft, 10);
       const h = parseInt(shapeHDraft, 10);
+      if (!(Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0)) {
+        // Size is mandatory — keep the dialog open.
+        setRoomDraft(name);
+        setRoomModalVisible(true);
+        return;
+      }
+      setPendingStart(false);
       shapeRef.current = {
         w: Number.isFinite(w) && w > 0 ? w : null,
         h: Number.isFinite(h) && h > 0 ? h : null,
@@ -474,7 +480,8 @@ export default function MeasureScreen() {
               placeholder="e.g. Bedroom"
               placeholderTextColor={theme.muted}
               autoFocus
-              onSubmitEditing={confirmRoom}
+              onSubmitEditing={pendingStart ? undefined : confirmRoom}
+              blurOnSubmit={false}
             />
             {pendingStart && knownRooms.length > 0 && (
               <View style={styles.chipRow}>
@@ -493,7 +500,7 @@ export default function MeasureScreen() {
                 ))}
               </View>
             )}
-            {pendingStart && (shapeWDraft !== '' || shapeHDraft !== '') && (
+            {pendingStart && (
               <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>
                 Start in a corner of the room, facing the far wall — the grid extends
                 ahead of you and to your right. Readings outside it are ignored.
@@ -502,7 +509,7 @@ export default function MeasureScreen() {
             {pendingStart && (
               <View style={styles.shapeRow}>
                 <Text style={{ color: theme.muted, fontSize: 13, flex: 1 }}>
-                  Room size (boxes, optional)
+                  Room size (boxes) — required
                 </Text>
                 <TextInput
                   style={[styles.shapeInput, { backgroundColor: theme.inputBg, color: theme.text }]}
@@ -525,7 +532,14 @@ export default function MeasureScreen() {
                 />
               </View>
             )}
-            <Button label={pendingStart ? 'Start scan' : 'Set room'} onPress={confirmRoom} />
+            <Button
+              label={pendingStart ? 'Start scan' : 'Set room'}
+              disabled={
+                pendingStart &&
+                !(parseInt(shapeWDraft, 10) > 0 && parseInt(shapeHDraft, 10) > 0)
+              }
+              onPress={confirmRoom}
+            />
             <Button
               label="Cancel"
               variant="ghost"
