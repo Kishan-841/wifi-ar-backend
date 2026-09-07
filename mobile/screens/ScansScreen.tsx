@@ -111,10 +111,30 @@ export default function ScansScreen() {
       {scans?.map((s, i) => (
         <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>
           <PressableScale onPress={() => openScan(s.id)} style={[card(theme), styles.scanCard]}>
-            <Text style={[styles.scanTitle, { color: theme.accent }]}>{s.ssid ?? 'Unknown network'}</Text>
-            <Text style={[styles.scanMeta, { color: theme.muted }]}>
-              {new Date(s.startedAt).toLocaleString()}   {s.measurementCount} points
-            </Text>
+            <View style={styles.scanRow}>
+              <View style={styles.scanInfo}>
+                <Text style={[styles.scanTitle, { color: theme.accent }]}>
+                  {s.room ?? s.ssid ?? 'Unknown network'}
+                </Text>
+                <Text style={[styles.scanMeta, { color: theme.muted }]}>
+                  {new Date(s.startedAt).toLocaleString()}   {s.measurementCount} points
+                  {s.shapeW != null ? `   ${s.shapeW}×${s.shapeH}` : '   free-form'}
+                </Text>
+              </View>
+              <Text
+                style={[styles.deleteX, { color: theme.muted }]}
+                onPress={async () => {
+                  try {
+                    await deleteScan(s.id);
+                    refresh();
+                  } catch (e) {
+                    setError(String(e));
+                  }
+                }}
+              >
+                ✕
+              </Text>
+            </View>
           </PressableScale>
         </FadeSlideIn>
       ))}
@@ -134,6 +154,18 @@ const styles = StyleSheet.create({
   },
   scanCard: {
     marginTop: 10,
+  },
+  scanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scanInfo: {
+    flex: 1,
+  },
+  deleteX: {
+    fontSize: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   scanTitle: {
     fontSize: 16,

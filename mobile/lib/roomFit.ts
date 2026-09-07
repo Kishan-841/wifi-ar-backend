@@ -16,26 +16,62 @@ const CELL = 0.5;
  */
 
 /**
- * Map an AR position to its grid box. A point up to DRIFT_MARGIN boxes outside
- * clamps to the nearest edge box (mild AR drift shouldn't lose readings);
- * anything farther out returns null and is discarded.
+ * The user starts in SOME corner — which one is a coin flip, so the grid
+ * auto-orients: the room may extend to the walker's left or right (sx) and
+ * ahead or behind (sz). Readings are kept if they fit ANY orientation; the
+ * live view and the final piece use whichever orientation fits the most
+ * points (it settles within the first few meters of walking).
  */
+export type Orientation = { sx: 1 | -1; sz: 1 | -1 };
+
+export const ORIENTATIONS: Orientation[] = [
+  { sx: 1, sz: 1 },
+  { sx: -1, sz: 1 },
+  { sx: 1, sz: -1 },
+  { sx: -1, sz: -1 },
+];
+
+/** A point up to DRIFT_MARGIN boxes outside clamps to the nearest edge box. */
 const DRIFT_MARGIN = 1;
 
 export function fixedGridBox(
   x: number,
   z: number,
   w: number,
-  h: number
+  h: number,
+  o: Orientation = { sx: 1, sz: 1 }
 ): { dx: number; dz: number } | null {
-  const dx = Math.round(x / CELL);
-  const dz = Math.round(-z / CELL);
+  const dx = Math.round((o.sx * x) / CELL);
+  const dz = Math.round((o.sz * -z) / CELL);
   if (dx < -DRIFT_MARGIN || dx >= w + DRIFT_MARGIN) return null;
   if (dz < -DRIFT_MARGIN || dz >= h + DRIFT_MARGIN) return null;
   return {
     dx: Math.max(0, Math.min(w - 1, dx)),
     dz: Math.max(0, Math.min(h - 1, dz)),
   };
+}
+
+/** Does the point fit the grid under at least one orientation? */
+export function fitsAnyOrientation(x: number, z: number, w: number, h: number): boolean {
+  return ORIENTATIONS.some((o) => fixedGridBox(x, z, w, h, o) != null);
+}
+
+/** The orientation that keeps the most points inside the grid. */
+export function bestOrientation(
+  pts: { x: number; z: number }[],
+  w: number,
+  h: number
+): Orientation {
+  let best = ORIENTATIONS[0];
+  let bestCount = -1;
+  for (const o of ORIENTATIONS) {
+    const count = pts.reduce((n, p) => n + (fixedGridBox(p.x, p.z, w, h, o) ? 1 : 0), 0);
+    if (count > bestCount) {
+      bestCount = count;
+      best = o;
+    }
+  }
+  return best;
 }
 
 /**
@@ -50,9 +86,10 @@ export function fixedRectPiece(
   scanId: string,
   name: string
 ): RoomPiece {
+  const orientation = bestOrientation(measurements, w, h);
   const values = new Map<string, number[]>();
   for (const m of measurements) {
-    const box = fixedGridBox(m.x, m.z, w, h);
+    const box = fixedGridBox(m.x, m.z, w, h, orientation);
     if (!box) continue; // outside the grid — discarded
     const key = `${box.dx},${box.dz}`;
     const list = values.get(key) ?? [];

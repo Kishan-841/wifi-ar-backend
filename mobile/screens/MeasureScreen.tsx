@@ -29,7 +29,7 @@ import {
   buildMeasurement,
   summarizeRooms,
 } from '../lib/measurement';
-import { fixedGridBox } from '../lib/roomFit';
+import { bestOrientation, fitsAnyOrientation, fixedGridBox } from '../lib/roomFit';
 import { rssiToColor } from '../lib/heatmapColor';
 import { FilteredRssi, RssiSampler, SAMPLE_INTERVAL_MS } from '../lib/rssiSampler';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
@@ -130,7 +130,11 @@ export default function MeasureScreen() {
         return;
       }
       const shape = shapeRef.current;
-      if (shape.w != null && shape.h != null && !fixedGridBox(pose!.x, pose!.z, shape.w, shape.h)) {
+      if (
+        shape.w != null &&
+        shape.h != null &&
+        !fitsAnyOrientation(pose!.x, pose!.z, shape.w, shape.h)
+      ) {
         setRejected((n) => n + 1);
         setLastReason('outside the room grid — ignored');
         return;
@@ -288,9 +292,10 @@ export default function MeasureScreen() {
   const shapeColors = useMemo(() => {
     const map = new Map<string, string>();
     if (!currentShape) return map;
+    const orientation = bestOrientation(measurements, currentShape.w, currentShape.h);
     const values = new Map<string, number[]>();
     for (const m of measurements) {
-      const box = fixedGridBox(m.x, m.z, currentShape.w, currentShape.h);
+      const box = fixedGridBox(m.x, m.z, currentShape.w, currentShape.h, orientation);
       if (!box) continue;
       const key = `${box.dx},${box.dz}`;
       const list = values.get(key) ?? [];
@@ -306,7 +311,13 @@ export default function MeasureScreen() {
 
   const shapeDot =
     currentShape && livePose
-      ? fixedGridBox(livePose.x, livePose.z, currentShape.w, currentShape.h)
+      ? fixedGridBox(
+          livePose.x,
+          livePose.z,
+          currentShape.w,
+          currentShape.h,
+          bestOrientation(measurements, currentShape.w, currentShape.h)
+        )
       : null;
 
 
