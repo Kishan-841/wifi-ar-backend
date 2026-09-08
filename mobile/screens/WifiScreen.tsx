@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, PermissionsAndroid, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Banner, Button, Row, card, layout } from '../components/DebugUI';
+import { Banner, Button, Row, card } from '../components/DebugUI';
 import { useTheme } from '../components/theme';
 import { RSSI_BANDS, bandRangeText, rssiBandOf } from '../lib/heatmapColor';
 import WifiInfoModule from '../modules/wifi-info/src/WifiInfoModule';
@@ -89,20 +89,38 @@ export default function WifiScreen() {
           <Banner color={theme.danger} text="Wi-Fi details are hidden — check permission and Location services." />
         )}
 
+        {/* Hero: the two numbers that matter, big */}
+        <View style={[styles.hero, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.heroLabel, { color: theme.muted }]}>Signal strength</Text>
+          <View style={styles.heroRow}>
+            <Text style={[styles.heroValue, { color: theme.text }]}>
+              {reading?.rssi != null ? reading.rssi : '—'}
+            </Text>
+            <Text style={[styles.heroUnit, { color: theme.muted }]}>dBm</Text>
+          </View>
+          {reading?.rssi != null ? (
+            <View style={[styles.heroChip, { backgroundColor: rssiBandOf(reading.rssi).color }]}>
+              <Text style={styles.heroChipText}>{rssiBandOf(reading.rssi).label}</Text>
+            </View>
+          ) : (
+            <Text style={{ color: theme.muted, fontSize: 13 }}>Waiting for a reading…</Text>
+          )}
+          <View style={[styles.heroBar, { backgroundColor: theme.inputBg }]}>
+            <View
+              style={[
+                styles.heroBarFill,
+                {
+                  width: `${reading?.rssi != null ? Math.max(4, Math.min(100, ((reading.rssi + 90) / 50) * 100)) : 0}%`,
+                  backgroundColor: reading?.rssi != null ? rssiBandOf(reading.rssi).color : 'transparent',
+                },
+              ]}
+            />
+          </View>
+        </View>
+
         <View style={card(theme)}>
           <Row label="SSID" value={reading?.ssid ?? '—'} />
           <Row label="BSSID" value={reading?.bssid ?? '—'} />
-          <Row label="RSSI" value={reading?.rssi != null ? `${reading.rssi} dBm` : '—'} big />
-          {reading?.rssi != null && (
-            <View style={styles.qualityRow}>
-              <Text style={[layout.rowLabel, { color: theme.muted }]}>Signal quality</Text>
-              <View
-                style={[styles.qualityChip, { backgroundColor: rssiBandOf(reading.rssi).color }]}
-              >
-                <Text style={styles.qualityChipText}>{rssiBandOf(reading.rssi).label}</Text>
-              </View>
-            </View>
-          )}
           <Row
             label="Frequency"
             value={
@@ -170,21 +188,56 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  qualityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  hero: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 22,
+    marginTop: 16,
     alignItems: 'center',
-    paddingVertical: 6,
   },
-  qualityChip: {
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  qualityChipText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+  heroLabel: {
     fontSize: 13,
+    fontWeight: '600',
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+    marginTop: 4,
+  },
+  heroValue: {
+    fontSize: 64,
+    fontWeight: '800',
+    letterSpacing: -2,
+    lineHeight: 70,
+    fontVariant: ['tabular-nums'],
+  },
+  heroUnit: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  heroChip: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    marginTop: 6,
+  },
+  heroChipText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  heroBar: {
+    alignSelf: 'stretch',
+    height: 8,
+    borderRadius: 4,
+    marginTop: 18,
+    overflow: 'hidden',
+  },
+  heroBarFill: {
+    height: 8,
+    borderRadius: 4,
   },
   rangesTitle: {
     fontSize: 13,
