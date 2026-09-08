@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Alert } from 'react-native';
-
+import { useConfirm } from '../components/ConfirmDialog';
 import { Banner, Button } from '../components/DebugUI';
 import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
@@ -16,6 +15,7 @@ export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -94,29 +94,29 @@ export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
                 <IconButton
                   name="trash-outline"
                   color={theme.danger}
-                  onPress={() =>
-                    Alert.alert(`Delete ${s.room ?? 'this recording'}?`, 'This cannot be undone.', [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Delete',
-                        style: 'destructive',
-                        onPress: async () => {
-                          try {
-                            await deleteScan(s.id);
-                            refresh();
-                          } catch (e) {
-                            setError(String(e));
-                          }
-                        },
-                      },
-                    ])
-                  }
+                  onPress={async () => {
+                    const ok = await confirm({
+                      title: `Delete ${s.room ?? 'this recording'}?`,
+                      message: 'This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      icon: 'trash-outline',
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    try {
+                      await deleteScan(s.id);
+                      refresh();
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
                 />
               }
             />
           ))}
         </ListGroup>
       )}
+      {confirmDialog}
     </Container>
   );
 }

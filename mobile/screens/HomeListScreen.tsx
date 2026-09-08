@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useConfirm } from '../components/ConfirmDialog';
 import { Banner, Button } from '../components/DebugUI';
 import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
@@ -16,6 +17,7 @@ export default function HomeListScreen() {
   const [naming, setNaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [creating, setCreating] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -73,23 +75,22 @@ export default function HomeListScreen() {
                   <IconButton
                     name="trash-outline"
                     color={theme.danger}
-                    onPress={() =>
-                      Alert.alert(`Delete ${h.name}?`, 'The home map layout will be removed. Room recordings are kept.', [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Delete',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await deleteLayout(h.id);
-                              refresh();
-                            } catch (e) {
-                              setError(String(e));
-                            }
-                          },
-                        },
-                      ])
-                    }
+                    onPress={async () => {
+                      const ok = await confirm({
+                        title: `Delete ${h.name}?`,
+                        message: 'The home map layout will be removed. Room recordings are kept.',
+                        confirmLabel: 'Delete',
+                        icon: 'trash-outline',
+                        destructive: true,
+                      });
+                      if (!ok) return;
+                      try {
+                        await deleteLayout(h.id);
+                        refresh();
+                      } catch (e) {
+                        setError(String(e));
+                      }
+                    }}
                   />
                 }
               />
@@ -119,6 +120,7 @@ export default function HomeListScreen() {
           </View>
         </View>
       </Modal>
+      {confirmDialog}
     </View>
   );
 }

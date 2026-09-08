@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '../components/anim';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Banner, Button } from '../components/DebugUI';
 import { Avatar, Chip, IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import ScanDetailView from '../components/ScanDetailView';
@@ -37,6 +38,7 @@ export default function AdminScreen() {
   const [selected, setSelected] = useState<AdminScanDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -53,27 +55,23 @@ export default function AdminScreen() {
     refresh();
   }, [refresh]);
 
-  const confirmDelete = (u: AdminUser) =>
-    Alert.alert(
-      `Delete ${u.name}?`,
-      `This removes their account, ${u.scanCount} recording${u.scanCount === 1 ? '' : 's'} and ${u.layoutCount} home${u.layoutCount === 1 ? '' : 's'}. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await adminDeleteUser(u.id);
-              setNotice(`Deleted ${u.name}`);
-              refresh();
-            } catch (e) {
-              setError(String((e as Error).message ?? e));
-            }
-          },
-        },
-      ]
-    );
+  const confirmDelete = async (u: AdminUser) => {
+    const ok = await confirm({
+      title: `Delete ${u.name}?`,
+      message: `Removes their account, ${u.scanCount} recording${u.scanCount === 1 ? '' : 's'} and ${u.layoutCount} home${u.layoutCount === 1 ? '' : 's'}. This cannot be undone.`,
+      confirmLabel: 'Delete',
+      icon: 'trash-outline',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await adminDeleteUser(u.id);
+      setNotice(`Deleted ${u.name}`);
+      refresh();
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    }
+  };
 
   if (view === 'create') {
     return (
@@ -173,6 +171,7 @@ export default function AdminScreen() {
           </>
         )}
       </ScrollView>
+      {confirmDialog}
     </View>
   );
 }

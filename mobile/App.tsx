@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { PressableScale } from './components/anim';
 import BottomBar from './components/BottomBar';
+import { useConfirm } from './components/ConfirmDialog';
 import { Avatar } from './components/ListItem';
 import { PagerLockContext } from './components/PagerLock';
 import SettingsModal from './components/SettingsModal';
@@ -40,6 +41,7 @@ function AppShell() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('measure');
   const [pagerLocked, setPagerLocked] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const pagerRef = useRef<PagerView>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
@@ -83,12 +85,19 @@ function AppShell() {
               <>
                 <Avatar name={user.name} size={36} />
                 <PressableScale
-                  onPress={() =>
-                    Alert.alert('Log out?', `Signed in as ${user.name}.`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Log out', style: 'destructive', onPress: () => logout() },
-                    ])
-                  }
+                  onPress={async () => {
+                    if (
+                      await confirm({
+                        title: 'Log out?',
+                        message: `You're signed in as ${user.name}.`,
+                        confirmLabel: 'Log out',
+                        icon: 'log-out-outline',
+                        destructive: true,
+                      })
+                    ) {
+                      logout();
+                    }
+                  }}
                   style={[styles.modeToggle, { backgroundColor: theme.card }]}
                 >
                   <Ionicons name="log-out-outline" size={20} color={theme.muted} />
@@ -130,6 +139,7 @@ function AppShell() {
       )}
       {ready && user && <BottomBar items={tabs} active={tab} onChange={(k) => goTo(k as Tab)} />}
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {confirmDialog}
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
   );
