@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useConfirm } from '../components/ConfirmDialog';
+import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
 import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
 import ScanDetailView from '../components/ScanDetailView';
 import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/api';
 
-export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
+export default function ScansScreen({ embedded, onCreate }: { embedded?: boolean; onCreate?: () => void } = {}) {
   const Container: any = embedded ? View : ScrollView;
   const { theme } = useTheme();
   const [scans, setScans] = useState<ScanSummary[] | null>(null);
@@ -77,7 +78,13 @@ export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
       {!embedded && <Button label="Refresh" variant="ghost" loading={loading} onPress={refresh} />}
       {error && <Banner color={theme.danger} text={error} />}
       {scans?.length === 0 && (
-        <Banner color={theme.info} text="No rooms saved yet — scan one above." />
+        <EmptyState
+          icon="scan-outline"
+          title="No rooms saved yet"
+          message="Scan a room and upload it — it will show up here with its heatmap."
+          actionLabel={onCreate ? 'Scan a room' : undefined}
+          onAction={onCreate}
+        />
       )}
       {scans && scans.length > 0 && (
         <ListGroup>

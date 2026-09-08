@@ -571,7 +571,7 @@ export default function MeasureScreen() {
             <Button label="Start new scan" onPress={startStop} />
           </View>
           <Text style={[styles.idleSection, { color: theme.muted }]}>Saved rooms</Text>
-          <ScansScreen embedded key={listKey} />
+          <ScansScreen embedded key={listKey} onCreate={startStop} />
         </ScrollView>
         {roomModal}
       </View>

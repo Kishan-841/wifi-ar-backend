@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 
 import { PressableScale } from '../components/anim';
 import { useConfirm } from '../components/ConfirmDialog';
+import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
 import { Avatar, Chip, IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import ScanDetailView from '../components/ScanDetailView';
@@ -145,7 +146,11 @@ export default function AdminScreen() {
             {scans === null ? (
               <ActivityIndicator color={theme.accent} />
             ) : scans.length === 0 ? (
-              <Text style={{ color: theme.muted }}>No recordings yet.</Text>
+              <EmptyState
+                icon="grid-outline"
+                title="No recordings yet"
+                message="Recordings appear here as users scan and upload rooms."
+              />
             ) : (
               <ListGroup>
                 {scans.map((s, i) => (

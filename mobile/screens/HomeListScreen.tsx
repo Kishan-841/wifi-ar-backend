@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useConfirm } from '../components/ConfirmDialog';
+import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
 import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
@@ -59,7 +60,13 @@ export default function HomeListScreen() {
         {error && <Banner color={theme.danger} text={error} />}
         {homes === null && <ActivityIndicator color={theme.accent} size="large" />}
         {homes?.length === 0 && (
-          <Banner color={theme.info} text="No homes yet — add one below, then place your scanned rooms." />
+          <EmptyState
+            icon="home-outline"
+            title="No homes yet"
+            message="Add a home, then place your scanned rooms on its map."
+            actionLabel="+ Add new home"
+            onAction={() => setNaming(true)}
+          />
         )}
         {homes && homes.length > 0 && (
           <ListGroup>
@@ -97,9 +104,12 @@ export default function HomeListScreen() {
             ))}
           </ListGroup>
         )}
-        <View style={{ height: 14 }} />
-
-        <Button label="+ Add new home" onPress={() => setNaming(true)} />
+        {homes && homes.length > 0 && (
+          <>
+            <View style={{ height: 14 }} />
+            <Button label="+ Add new home" onPress={() => setNaming(true)} />
+          </>
+        )}
       </ScrollView>
 
       <Modal visible={naming} transparent animationType="fade" onRequestClose={() => setNaming(false)}>
