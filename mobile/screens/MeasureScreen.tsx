@@ -73,6 +73,18 @@ export default function MeasureScreen() {
   const [pendingStart, setPendingStart] = useState(false);
   const [shapeWDraft, setShapeWDraft] = useState('');
   const [shapeHDraft, setShapeHDraft] = useState('');
+  /** Room size bounds (boxes of 0.5 m): 1 box … 60 boxes = 30 m. */
+  const MIN_BOXES = 1;
+  const MAX_BOXES = 60;
+  const sizeProblem = (() => {
+    if (!shapeWDraft && !shapeHDraft) return null;
+    const w = parseInt(shapeWDraft, 10);
+    const h = parseInt(shapeHDraft, 10);
+    if (!(Number.isFinite(w) && Number.isFinite(h))) return 'Enter both width and height.';
+    if (w < MIN_BOXES || h < MIN_BOXES) return 'Each side must be at least 1 box.';
+    if (w > MAX_BOXES || h > MAX_BOXES) return `Each side can be at most ${MAX_BOXES} boxes (30 m).`;
+    return null;
+  })();
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
   const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
   const [listKey, setListKey] = useState(0);
@@ -571,8 +583,8 @@ export default function MeasureScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
+  const body = (
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {running ? (
         <ViroARSceneNavigator
           autofocus
@@ -746,8 +758,24 @@ export default function MeasureScreen() {
         )}
       </View>
 
-      {roomModal}
     </View>
+  );
+
+  if (running) {
+    // A live AR camera surface must not live inside the swipeable pager
+    // (a recycling container): scanning runs in its own full-screen window.
+    return (
+      <Modal visible animationType="slide" statusBarTranslucent onRequestClose={startStop}>
+        {body}
+        {roomModal}
+      </Modal>
+    );
+  }
+  return (
+    <>
+      {body}
+      {roomModal}
+    </>
   );
 }
 
