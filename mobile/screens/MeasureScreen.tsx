@@ -17,6 +17,7 @@ import {
   TrackingInfo,
   TrackingState,
 } from '../components/ArPoseSource';
+import { useConfirm } from '../components/ConfirmDialog';
 import { Banner, Button, Row, card } from '../components/DebugUI';
 import GridMap from '../components/GridMap';
 import ShapeGrid from '../components/ShapeGrid';
@@ -88,6 +89,7 @@ export default function MeasureScreen() {
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
   const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
   const [listKey, setListKey] = useState(0);
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
 
   /** Guided survey: the walk order defines position; AR only nudges "next box". */
@@ -302,21 +304,6 @@ export default function MeasureScreen() {
     return () => clearInterval(timer);
   }, [running, guided, recordBox]);
 
-  const dumpDataset = useCallback(() => {
-    const cells = Array.from(gridRef.current.entries()).map(([key, c]) => ({
-      key,
-      cx: c.cx,
-      cz: c.cz,
-      n: c.rssiValues.length,
-      medianRssi: c.medianRssi,
-      minRssi: c.minRssi,
-      maxRssi: c.maxRssi,
-      suspectCount: c.suspectCount,
-    }));
-    // One tagged line so it is easy to find and parse from the Metro log.
-    console.log('WIFIAR_DATASET ' + JSON.stringify({ measurements, cells }));
-  }, [measurements]);
-
   const clearAll = useCallback(() => {
     setMeasurements([]);
     setRejected(0);
@@ -327,6 +314,15 @@ export default function MeasureScreen() {
     samplerRef.current.reset();
     gridRef.current.clear();
   }, []);
+
+  /** Leave the results view and return to the rooms list. */
+  const finishScan = useCallback(() => {
+    clearAll();
+    setUpload({ state: 'idle' });
+    setGuided(null);
+    setCurrentShape(null);
+    setListKey((k) => k + 1);
+  }, [clearAll]);
 
   const reallyStart = useCallback(
     (room: string | null) => {
@@ -677,40 +673,42 @@ export default function MeasureScreen() {
               onPress={() => setRoomModalVisible(true)}
             />
           )}
-          <Button
-            label={running ? 'Stop measuring' : 'Start new scan'}
-            variant={running ? 'danger' : 'primary'}
-            onPress={startStop}
-          />
+          {running && (
+            <Button label="Stop measuring" variant="danger" onPress={startStop} />
+          )}
           {!running && measurements.length > 0 && (
             <>
-              <Text style={styles.reasonText}>
-                Starting again begins a fresh scan — upload or dump this one first to keep it.
-              </Text>
               {upload.state === 'done' ? (
                 <>
                   <Banner color={theme.success} text="Room saved ✓" />
-                  <Button
-                    label="Done"
-                    onPress={() => {
-                      clearAll();
-                      setUpload({ state: 'idle' });
-                      setGuided(null);
-                      setCurrentShape(null);
-                      setListKey((k) => k + 1);
-                    }}
-                  />
+                  <Button label="Done" onPress={finishScan} />
                 </>
               ) : (
                 <Button
-                  label="Upload scan to server"
+                  label="Save room to server"
                   loading={upload.state === 'sending'}
                   onPress={doUpload}
                 />
               )}
               {upload.state === 'error' && <Banner color={theme.danger} text={upload.message} />}
-              <Button label="Dump dataset to logs" variant="ghost" onPress={dumpDataset} />
-              <Button label="Clear measurements" variant="ghost" onPress={clearAll} />
+              <Button
+                label="← Back to rooms"
+                variant="ghost"
+                onPress={async () => {
+                  if (upload.state === 'done') {
+                    finishScan();
+                    return;
+                  }
+                  const ok = await confirm({
+                    title: 'Discard this scan?',
+                    message: "It hasn't been saved to the server yet.",
+                    confirmLabel: 'Discard',
+                    icon: 'trash-outline',
+                    destructive: true,
+                  });
+                  if (ok) finishScan();
+                }}
+              />
             </>
           )}
         </View>
@@ -775,6 +773,7 @@ export default function MeasureScreen() {
     <>
       {body}
       {roomModal}
+      {confirmDialog}
     </>
   );
 }
