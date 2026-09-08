@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -23,14 +24,17 @@ type Tab = 'wifi' | 'measure' | 'home' | 'admin';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppShell />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
 function AppShell() {
   const { theme, toggle } = useTheme();
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('measure');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
@@ -47,7 +51,7 @@ function AppShell() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerTop}>
           <Text style={[styles.title, { color: theme.accent }]}>WiFi AR</Text>
           <View style={styles.headerButtons}>
@@ -115,7 +119,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 52,
     paddingHorizontal: 20,
     paddingBottom: 10,
   },

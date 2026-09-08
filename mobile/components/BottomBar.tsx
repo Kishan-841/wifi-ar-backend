@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressableScale } from './anim';
 import { useTheme } from './theme';
@@ -17,8 +18,15 @@ export default function BottomBar({
   onChange: (key: string) => void;
 }) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.bar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+    <View
+      style={[
+        styles.bar,
+        // Sit above the system navigation bar (edge-to-edge on Android 15).
+        { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: insets.bottom + 8 },
+      ]}
+    >
       {items.map((it) => {
         const isActive = it.key === active;
         const color = isActive ? theme.primary : theme.muted;
@@ -38,7 +46,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 8,
-    paddingBottom: 18,
   },
   item: {
     flex: 1,
