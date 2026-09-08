@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { FadeSlideIn, PressableScale } from '../components/anim';
-import { Banner, Button, card } from '../components/DebugUI';
+import { Banner, Button } from '../components/DebugUI';
+import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
 import { LayoutSummary, createLayout, deleteLayout, listLayouts } from '../lib/api';
 import HomeScreen from './HomeScreen';
@@ -59,33 +59,44 @@ export default function HomeListScreen() {
         {homes?.length === 0 && (
           <Banner color={theme.info} text="No homes yet — add one below, then place your scanned rooms." />
         )}
-        {homes?.map((h, i) => (
-          <FadeSlideIn key={h.id} delay={Math.min(i * 40, 200)}>
-            <PressableScale onPress={() => setOpenId(h.id)} style={[card(theme), styles.homeCard]}>
-              <View style={styles.homeRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.homeTitle, { color: theme.accent }]}>{h.name}</Text>
-                  <Text style={[styles.homeMeta, { color: theme.muted }]}>
-                    {h.placementCount} room{h.placementCount === 1 ? '' : 's'} placed · grid {h.cols}×{h.rows}
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.deleteX, { color: theme.muted }]}
-                  onPress={async () => {
-                    try {
-                      await deleteLayout(h.id);
-                      refresh();
-                    } catch (e) {
-                      setError(String(e));
+        {homes && homes.length > 0 && (
+          <ListGroup>
+            {homes.map((h, i) => (
+              <ListItem
+                key={h.id}
+                last={i === homes.length - 1}
+                leading={<IconBadge name="home-outline" color={theme.primary} />}
+                title={h.name}
+                subtitle={`${h.placementCount} room${h.placementCount === 1 ? '' : 's'} placed · grid ${h.cols}×${h.rows}`}
+                onPress={() => setOpenId(h.id)}
+                trailing={
+                  <IconButton
+                    name="trash-outline"
+                    color={theme.danger}
+                    onPress={() =>
+                      Alert.alert(`Delete ${h.name}?`, 'The home map layout will be removed. Room recordings are kept.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Delete',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await deleteLayout(h.id);
+                              refresh();
+                            } catch (e) {
+                              setError(String(e));
+                            }
+                          },
+                        },
+                      ])
                     }
-                  }}
-                >
-                  ✕
-                </Text>
-              </View>
-            </PressableScale>
-          </FadeSlideIn>
-        ))}
+                  />
+                }
+              />
+            ))}
+          </ListGroup>
+        )}
+        <View style={{ height: 14 }} />
 
         <Button label="+ Add new home" onPress={() => setNaming(true)} />
       </ScrollView>
@@ -119,26 +130,6 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 20,
     paddingBottom: 40,
-  },
-  homeCard: {
-    marginTop: 10,
-  },
-  homeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  homeTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  homeMeta: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  deleteX: {
-    fontSize: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
   },
   modalBackdrop: {
     flex: 1,

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '../components/anim';
-import { Chip, Table, TwoLine } from '../components/DataTable';
 import { Banner, Button } from '../components/DebugUI';
+import { Avatar, Chip, IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import ScanDetailView from '../components/ScanDetailView';
 import { useTheme } from '../components/theme';
 import {
@@ -16,9 +16,15 @@ import {
   adminListUsers,
 } from '../lib/api';
 import { getUser } from '../lib/auth';
+import { rssiBandOf } from '../lib/heatmapColor';
 import CreateUserScreen from './CreateUserScreen';
 
 type Section = 'users' | 'recordings';
+
+const fmtDate = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+};
 
 /** Admin area — mounted only for role 'admin'; the API enforces it regardless. */
 export default function AdminScreen() {
@@ -47,6 +53,28 @@ export default function AdminScreen() {
     refresh();
   }, [refresh]);
 
+  const confirmDelete = (u: AdminUser) =>
+    Alert.alert(
+      `Delete ${u.name}?`,
+      `This removes their account, ${u.scanCount} recording${u.scanCount === 1 ? '' : 's'} and ${u.layoutCount} home${u.layoutCount === 1 ? '' : 's'}. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await adminDeleteUser(u.id);
+              setNotice(`Deleted ${u.name}`);
+              refresh();
+            } catch (e) {
+              setError(String((e as Error).message ?? e));
+            }
+          },
+        },
+      ]
+    );
+
   if (view === 'create') {
     return (
       <CreateUserScreen
@@ -64,14 +92,8 @@ export default function AdminScreen() {
     return <ScanDetailView scan={selected} owner={selected.user} onBack={() => setSelected(null)} />;
   }
 
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
-  };
-
   return (
     <View style={styles.container}>
-      {/* Section switcher */}
       <View style={[styles.segments, { backgroundColor: theme.inputBg }]}>
         {(['users', 'recordings'] as Section[]).map((s) => (
           <PressableScale
@@ -81,7 +103,7 @@ export default function AdminScreen() {
             style={[styles.segment, section === s && { backgroundColor: theme.card }]}
           >
             <Text style={{ color: section === s ? theme.text : theme.muted, fontWeight: '600', fontSize: 13 }}>
-              {s === 'users' ? `Users${users ? ` (${users.length})` : ''}` : `Recordings${scans ? ` (${scans.length})` : ''}`}
+              {s === 'users' ? `Users${users ? ` · ${users.length}` : ''}` : `Recordings${scans ? ` · ${scans.length}` : ''}`}
             </Text>
           </PressableScale>
         ))}
@@ -93,90 +115,60 @@ export default function AdminScreen() {
 
         {section === 'users' && (
           <>
-            <View style={styles.toolbar}>
-              <Text style={[styles.heading, { color: theme.text }]}>Users</Text>
-              <Button label="+ New user" onPress={() => { setNotice(null); setView('create'); }} />
-            </View>
+            <Button label="+ New user" onPress={() => { setNotice(null); setView('create'); }} />
+            <View style={{ height: 14 }} />
             {users === null ? (
               <ActivityIndicator color={theme.accent} />
             ) : (
-              <Table
-                columns={[
-                  { title: 'User', flex: 3 },
-                  { title: 'Role', flex: 1.2 },
-                  { title: 'Rec.', flex: 0.8, align: 'right' },
-                  { title: 'Homes', flex: 0.9, align: 'right' },
-                  { title: '', flex: 0.6, align: 'right' },
-                ]}
-                rows={users.map((u) => ({
-                  key: u.id,
-                  cells: [
-                    <TwoLine key="n" primary={u.name} secondary={u.email} />,
-                    <Chip key="r" label={u.role} color={u.role === 'admin' ? theme.primary : theme.info} />,
-                    String(u.scanCount),
-                    String(u.layoutCount),
-                    u.role !== 'admin' && u.id !== me?.id ? (
-                      <Text
-                        key="x"
-                        style={{ color: theme.danger, fontSize: 18, paddingHorizontal: 6 }}
-                        onPress={async () => {
-                          try {
-                            await adminDeleteUser(u.id);
-                            setNotice(`Deleted ${u.name} and their data`);
-                            refresh();
-                          } catch (e) {
-                            setError(String((e as Error).message ?? e));
-                          }
-                        }}
-                      >
-                        ✕
-                      </Text>
-                    ) : (
-                      <Text key="x" />
-                    ),
-                  ],
-                }))}
-                empty="No users yet."
-              />
+              <ListGroup>
+                {users.map((u, i) => (
+                  <ListItem
+                    key={u.id}
+                    last={i === users.length - 1}
+                    leading={<Avatar name={u.name} />}
+                    title={u.name}
+                    titleAccessory={u.role === 'admin' ? <Chip label="Admin" color={theme.primary} /> : undefined}
+                    subtitle={u.email}
+                    meta={`${u.scanCount} recording${u.scanCount === 1 ? '' : 's'} · ${u.layoutCount} home${u.layoutCount === 1 ? '' : 's'}`}
+                    trailing={
+                      u.role !== 'admin' && u.id !== me?.id ? (
+                        <IconButton name="trash-outline" color={theme.danger} onPress={() => confirmDelete(u)} />
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </ListGroup>
             )}
           </>
         )}
 
         {section === 'recordings' && (
           <>
-            <Text style={[styles.heading, { color: theme.text, marginBottom: 10 }]}>All recordings</Text>
             {scans === null ? (
               <ActivityIndicator color={theme.accent} />
+            ) : scans.length === 0 ? (
+              <Text style={{ color: theme.muted }}>No recordings yet.</Text>
             ) : (
-              <Table
-                columns={[
-                  { title: 'Room', flex: 2.2 },
-                  { title: 'By', flex: 1.4 },
-                  { title: 'When', flex: 1.6 },
-                  { title: 'Pts', flex: 0.7, align: 'right' },
-                ]}
-                rows={scans.map((s) => ({
-                  key: s.id,
-                  onPress: async () => {
-                    try {
-                      setSelected(await adminGetScan(s.id));
-                    } catch (e) {
-                      setError(String((e as Error).message ?? e));
-                    }
-                  },
-                  cells: [
-                    <TwoLine
-                      key="r"
-                      primary={s.room ?? '(untagged)'}
-                      secondary={s.shapeW != null ? `${s.shapeW}×${s.shapeH} boxes · ${s.ssid ?? '—'}` : `free-form · ${s.ssid ?? '—'}`}
-                    />,
-                    s.user.name,
-                    fmtDate(s.startedAt),
-                    String(s.measurementCount),
-                  ],
-                }))}
-                empty="No recordings yet."
-              />
+              <ListGroup>
+                {scans.map((s, i) => (
+                  <ListItem
+                    key={s.id}
+                    last={i === scans.length - 1}
+                    leading={<IconBadge name="grid-outline" color={theme.accent} />}
+                    title={s.room ?? '(untagged)'}
+                    subtitle={`by ${s.user.name} · ${fmtDate(s.startedAt)}`}
+                    meta={`${s.shapeW != null ? `${s.shapeW}×${s.shapeH} boxes` : 'free-form'} · ${s.measurementCount} points · ${s.ssid ?? '—'}`}
+                    trailing={<IconButton name="chevron-forward" color={theme.muted} />}
+                    onPress={async () => {
+                      try {
+                        setSelected(await adminGetScan(s.id));
+                      } catch (e) {
+                        setError(String((e as Error).message ?? e));
+                      }
+                    }}
+                  />
+                ))}
+              </ListGroup>
             )}
           </>
         )}
@@ -204,15 +196,5 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 20,
     paddingBottom: 40,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '700',
   },
 });

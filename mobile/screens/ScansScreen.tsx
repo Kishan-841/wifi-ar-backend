@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
-import { FadeSlideIn, PressableScale } from '../components/anim';
-import { Banner, Button, card } from '../components/DebugUI';
+import { Alert } from 'react-native';
+
+import { Banner, Button } from '../components/DebugUI';
+import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
 import { useTheme } from '../components/theme';
 import ScanDetailView from '../components/ScanDetailView';
 import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/api';
@@ -77,36 +79,44 @@ export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
       {scans?.length === 0 && (
         <Banner color={theme.info} text="No rooms saved yet — scan one above." />
       )}
-      {scans?.map((s, i) => (
-        <FadeSlideIn key={s.id} delay={Math.min(i * 40, 200)}>
-          <PressableScale onPress={() => openScan(s.id)} style={[card(theme), styles.scanCard]}>
-            <View style={styles.scanRow}>
-              <View style={styles.scanInfo}>
-                <Text style={[styles.scanTitle, { color: theme.accent }]}>
-                  {s.room ?? s.ssid ?? 'Unknown network'}
-                </Text>
-                <Text style={[styles.scanMeta, { color: theme.muted }]}>
-                  {new Date(s.startedAt).toLocaleString()}   {s.measurementCount} points
-                  {s.shapeW != null ? `   ${s.shapeW}×${s.shapeH}` : '   free-form'}
-                </Text>
-              </View>
-              <Text
-                style={[styles.deleteX, { color: theme.muted }]}
-                onPress={async () => {
-                  try {
-                    await deleteScan(s.id);
-                    refresh();
-                  } catch (e) {
-                    setError(String(e));
+      {scans && scans.length > 0 && (
+        <ListGroup>
+          {scans.map((s, i) => (
+            <ListItem
+              key={s.id}
+              last={i === scans.length - 1}
+              leading={<IconBadge name="grid-outline" color={theme.accent} />}
+              title={s.room ?? s.ssid ?? 'Unknown network'}
+              subtitle={new Date(s.startedAt).toLocaleString()}
+              meta={`${s.shapeW != null ? `${s.shapeW}×${s.shapeH} boxes` : 'free-form'} · ${s.measurementCount} points`}
+              onPress={() => openScan(s.id)}
+              trailing={
+                <IconButton
+                  name="trash-outline"
+                  color={theme.danger}
+                  onPress={() =>
+                    Alert.alert(`Delete ${s.room ?? 'this recording'}?`, 'This cannot be undone.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await deleteScan(s.id);
+                            refresh();
+                          } catch (e) {
+                            setError(String(e));
+                          }
+                        },
+                      },
+                    ])
                   }
-                }}
-              >
-                ✕
-              </Text>
-            </View>
-          </PressableScale>
-        </FadeSlideIn>
-      ))}
+                />
+              }
+            />
+          ))}
+        </ListGroup>
+      )}
     </Container>
   );
 }
@@ -120,28 +130,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  scanCard: {
-    marginTop: 10,
-  },
-  scanRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  scanInfo: {
-    flex: 1,
-  },
-  deleteX: {
-    fontSize: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  scanTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scanMeta: {
-    fontSize: 12,
-    marginTop: 4,
   },
 });
