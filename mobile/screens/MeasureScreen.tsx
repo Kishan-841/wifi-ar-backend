@@ -51,6 +51,8 @@ import type { WifiReading } from '../modules/wifi-info/src/WifiInfo.types';
 const MEASURE_INTERVAL_MS = 2000;
 /** Don't record until the median rests on at least this many samples. */
 const MIN_SAMPLES = 3;
+/** Readings listed on the results page (newest first); older ones are still uploaded. */
+const MAX_LISTED_READINGS = 200;
 
 export default function MeasureScreen() {
   const { theme } = useTheme();
@@ -579,157 +581,83 @@ export default function MeasureScreen() {
     );
   }
 
-  const body = (
-    <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {running ? (
-        <ViroARSceneNavigator
-          autofocus
-          initialScene={{ scene: PoseTrackerScene as any }}
-          viroAppProps={{ onPose, onTracking }}
-          style={styles.arView}
-        />
-      ) : (
-        <View style={[styles.cameraOff, { backgroundColor: theme.bg }]}>
-          <Text style={[styles.cameraOffText, { color: theme.muted }]}>
-            Camera off — battery saver.{'\n'}Start measuring to activate AR tracking.
+  // Finished: measurements collected, camera off. A normal opaque, scrollable
+  // page — nothing sits "behind" it and every reading is reachable.
+  if (!running) {
+    const rooms = summarizeRooms(measurements);
+    const shown = measurements.slice(-MAX_LISTED_READINGS).reverse();
+    return (
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
+        <ScrollView contentContainerStyle={styles.idleScroll}>
+          <Text style={[styles.idleTitle, { color: theme.text }]}>Scan complete</Text>
+          <Text style={[styles.idleSubtitle, { color: theme.muted }]}>
+            {currentRoom ?? 'Untitled room'} · {measurements.length} points
+            {currentShape ? ` · ${currentShape.w}×${currentShape.h} boxes` : ''}
           </Text>
-        </View>
-      )}
 
-      <View style={styles.overlay} pointerEvents="box-none">
-        {running && currentShape && guided && (
-          <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
-            <ShapeGrid
-              w={currentShape.w}
-              h={currentShape.h}
-              colors={shapeColors}
-              skipped={guided.skipped}
-              target={guidedTarget}
-              onBoxPress={jumpToBox}
-            />
-            <Text style={[styles.guideHint, { color: guidedComplete ? '#22C55E' : theme.text }]}>
-              {guided.sampling
-                ? 'Sampling Wi-Fi… hold still'
-                : guidedComplete
-                  ? '✓ Room complete — stop and upload'
-                  : moveHint(guidedPrev, guidedTarget!)}
-            </Text>
-          </View>
-        )}
-        {running && !currentShape && cells.length > 0 && (
-          <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
-            <GridMap cells={cells} currentPose={livePose} height={150} />
-          </View>
-        )}
-
-        <View style={[card(theme), { backgroundColor: theme.overlayCard, marginTop: 0 }]}>
-          {running && (
-            <View style={styles.recordingRow}>
-              <PulseDot />
-              <Text style={styles.recordingText}>Recording</Text>
-            </View>
-          )}
-          <Row label="Tracking" value={tracking.state} />
-          {running && <Row label="Current room" value={currentRoom ?? '(untagged)'} />}
-          <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
-          <Row label="Rejected" value={String(rejected)} />
-          {lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
-
-          {filtered && (
-            <Row
-              label="RSSI median (live)"
-              value={`${filtered.rssi} dBm  (±${filtered.spread}, n=${filtered.sampleCount})`}
-            />
-          )}
-          {latest && (
-            <Row
-              label="Latest point"
-              value={`(${latest.x.toFixed(1)}, ${latest.z.toFixed(1)})  ${latest.rssi} dBm`}
-            />
-          )}
-          {gridSummary && gridSummary.cells > 0 && (
-            <>
-              <Row
-                label="Best / worst cell"
-                value={`${gridSummary.strongest} / ${gridSummary.weakest} dBm`}
-              />
-              <Row label="Worst in-cell spread" value={`${gridSummary.worstCellSpread} dB`} />
-            </>
-          )}
-
-          {running && guided && !guidedComplete && (
-            <View style={styles.guidedButtons}>
-              <View style={{ flex: 1 }}>
-                <Button label="Record here" loading={guided.sampling} onPress={recordBox} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button label="Skip (obstacle)" variant="ghost" onPress={skipBox} />
-              </View>
-            </View>
-          )}
-          {running && !guided && (
-            <Button
-              label={currentRoom ? `📍 Leaving ${currentRoom} — new room` : '📍 Tag current room'}
-              onPress={() => setRoomModalVisible(true)}
-            />
-          )}
-          {running && (
-            <Button label="Stop measuring" variant="danger" onPress={startStop} />
-          )}
-          {!running && measurements.length > 0 && (
-            <>
-              {upload.state === 'done' ? (
-                <>
-                  <Banner color={theme.success} text="Room saved ✓" />
-                  <Button label="Done" onPress={finishScan} />
-                </>
-              ) : (
-                <Button
-                  label="Save room to server"
-                  loading={upload.state === 'sending'}
-                  onPress={doUpload}
-                />
-              )}
-              {upload.state === 'error' && <Banner color={theme.danger} text={upload.message} />}
+          <View style={card(theme)}>
+            {upload.state === 'done' ? (
+              <>
+                <Banner color={theme.success} text="Room saved ✓" />
+                <Button label="Done" onPress={finishScan} />
+              </>
+            ) : (
               <Button
-                label="← Back to rooms"
-                variant="ghost"
-                onPress={async () => {
-                  if (upload.state === 'done') {
-                    finishScan();
-                    return;
-                  }
-                  const ok = await confirm({
-                    title: 'Discard this scan?',
-                    message: "It hasn't been saved to the server yet.",
-                    confirmLabel: 'Discard',
-                    icon: 'trash-outline',
-                    destructive: true,
-                  });
-                  if (ok) finishScan();
-                }}
+                label="Save room to server"
+                loading={upload.state === 'sending'}
+                onPress={doUpload}
               />
-            </>
+            )}
+            {upload.state === 'error' && <Banner color={theme.danger} text={upload.message} />}
+            <Button
+              label="← Back to rooms"
+              variant="ghost"
+              onPress={async () => {
+                if (upload.state === 'done') {
+                  finishScan();
+                  return;
+                }
+                const ok = await confirm({
+                  title: 'Discard this scan?',
+                  message: "It hasn't been saved to the server yet.",
+                  confirmLabel: 'Discard',
+                  icon: 'trash-outline',
+                  destructive: true,
+                });
+                if (ok) finishScan();
+              }}
+            />
+          </View>
+
+          {currentShape ? (
+            <View style={[card(theme), styles.mapCard]}>
+              <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} />
+              <Text style={[styles.reasonText, { marginTop: 8 }]}>
+                Empty boxes are filled from nearest readings after upload.
+              </Text>
+            </View>
+          ) : (
+            cells.length > 0 && (
+              <View style={[card(theme), styles.mapCard]}>
+                <GridMap cells={cells} height={240} showLegend />
+              </View>
+            )
           )}
-        </View>
 
-        {!running && currentShape && measurements.length > 0 && (
-          <View style={[styles.fullMapPanel, { backgroundColor: theme.overlayCard }]}>
-            <ShapeGrid w={currentShape.w} h={currentShape.h} colors={shapeColors} />
-            <Text style={[styles.reasonText, { marginTop: 6 }]}>
-              Empty boxes are filled from nearest readings after upload.
-            </Text>
-          </View>
-        )}
-        {!running && !currentShape && cells.length > 0 && (
-          <View style={[styles.fullMapPanel, { backgroundColor: theme.overlayCard }]}>
-            <GridMap cells={cells} height={240} showLegend />
-          </View>
-        )}
-
-        {!running && measurements.length > 0 && (
-          <View style={[styles.roomStatsPanel, { backgroundColor: theme.overlayCard }]}>
-            {summarizeRooms(measurements).map((r) => (
+          <View style={card(theme)}>
+            <Row label="Tracking" value={tracking.state} />
+            <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
+            <Row label="Rejected" value={String(rejected)} />
+            {gridSummary && gridSummary.cells > 0 && (
+              <>
+                <Row
+                  label="Best / worst cell"
+                  value={`${gridSummary.strongest} / ${gridSummary.weakest} dBm`}
+                />
+                <Row label="Worst in-cell spread" value={`${gridSummary.worstCellSpread} dB`} />
+              </>
+            )}
+            {rooms.map((r) => (
               <View key={r.room} style={styles.roomStatsRow}>
                 <Text style={[styles.roomStatsName, { color: theme.accent }]}>{r.room}</Text>
                 <Text style={[styles.roomStatsValue, { color: theme.text }]}>
@@ -738,43 +666,115 @@ export default function MeasureScreen() {
               </View>
             ))}
           </View>
-        )}
 
-        {!running && measurements.length > 0 && (
-          <ScrollView style={[styles.list, { backgroundColor: theme.overlayCard }]}>
-            {measurements
-              .slice(-30)
-              .reverse()
-              .map((m) => (
-                <Text key={m.timestamp} style={[styles.listRow, { color: theme.muted }]}>
-                  {new Date(m.timestamp).toLocaleTimeString()}  ({m.x.toFixed(1)},{' '}
-                  {m.y.toFixed(1)}, {m.z.toFixed(1)})  {m.rssi} dBm
-                  {m.trackingQuality !== 'TRACKING' ? '  ⚠' : ''}
+          <View style={card(theme)}>
+            <Text style={[styles.idleSection, { color: theme.muted, marginTop: 0 }]}>
+              Readings{measurements.length > shown.length ? ` (last ${shown.length})` : ''}
+            </Text>
+            {shown.map((m) => (
+              <View key={m.timestamp} style={[styles.readingRow, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.readingTime, { color: theme.muted }]}>
+                  {new Date(m.timestamp).toLocaleTimeString()}
                 </Text>
-              ))}
-          </ScrollView>
-        )}
-      </View>
-
-    </View>
-  );
-
-  if (running) {
-    // A live AR camera surface must not live inside the swipeable pager
-    // (a recycling container): scanning runs in its own full-screen window.
-    return (
-      <Modal visible animationType="slide" statusBarTranslucent onRequestClose={startStop}>
-        {body}
+                <Text style={[styles.readingPos, { color: theme.text }]}>
+                  ({m.x.toFixed(1)}, {m.z.toFixed(1)})
+                  {m.trackingQuality !== 'TRACKING' ? ' ⚠' : ''}
+                </Text>
+                <Text style={[styles.readingRssi, { color: theme.text }]}>{m.rssi} dBm</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
         {roomModal}
-      </Modal>
+        {confirmDialog}
+      </View>
     );
   }
+
+  // Live scan: a camera surface must not live inside the swipeable pager
+  // (a recycling container), so it runs in its own full-screen window with
+  // the guidance panels overlaid on the AR view.
   return (
-    <>
-      {body}
+    <Modal visible animationType="slide" statusBarTranslucent onRequestClose={startStop}>
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
+        <ViroARSceneNavigator
+          autofocus
+          initialScene={{ scene: PoseTrackerScene as any }}
+          viroAppProps={{ onPose, onTracking }}
+          style={styles.arView}
+        />
+
+        <View style={styles.overlay} pointerEvents="box-none">
+          {currentShape && guided && (
+            <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
+              <ShapeGrid
+                w={currentShape.w}
+                h={currentShape.h}
+                colors={shapeColors}
+                skipped={guided.skipped}
+                target={guidedTarget}
+                onBoxPress={jumpToBox}
+              />
+              <Text style={[styles.guideHint, { color: guidedComplete ? '#22C55E' : theme.text }]}>
+                {guided.sampling
+                  ? 'Sampling Wi-Fi… hold still'
+                  : guidedComplete
+                    ? '✓ Room complete — stop and upload'
+                    : moveHint(guidedPrev, guidedTarget!)}
+              </Text>
+            </View>
+          )}
+          {!currentShape && cells.length > 0 && (
+            <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
+              <GridMap cells={cells} currentPose={livePose} height={150} />
+            </View>
+          )}
+
+          <View style={[card(theme), { backgroundColor: theme.overlayCard, marginTop: 0 }]}>
+            <View style={styles.recordingRow}>
+              <PulseDot />
+              <Text style={styles.recordingText}>Recording</Text>
+            </View>
+            <Row label="Tracking" value={tracking.state} />
+            <Row label="Current room" value={currentRoom ?? '(untagged)'} />
+            <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
+            <Row label="Rejected" value={String(rejected)} />
+            {lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
+            {filtered && (
+              <Row
+                label="RSSI median (live)"
+                value={`${filtered.rssi} dBm  (±${filtered.spread}, n=${filtered.sampleCount})`}
+              />
+            )}
+            {latest && (
+              <Row
+                label="Latest point"
+                value={`(${latest.x.toFixed(1)}, ${latest.z.toFixed(1)})  ${latest.rssi} dBm`}
+              />
+            )}
+
+            {guided && !guidedComplete && (
+              <View style={styles.guidedButtons}>
+                <View style={{ flex: 1 }}>
+                  <Button label="Record here" loading={guided.sampling} onPress={recordBox} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button label="Skip (obstacle)" variant="ghost" onPress={skipBox} />
+                </View>
+              </View>
+            )}
+            {!guided && (
+              <Button
+                label={currentRoom ? `📍 Leaving ${currentRoom} — new room` : '📍 Tag current room'}
+                onPress={() => setRoomModalVisible(true)}
+              />
+            )}
+            <Button label="Stop measuring" variant="danger" onPress={startStop} />
+          </View>
+        </View>
+      </View>
       {roomModal}
-      {confirmDialog}
-    </>
+    </Modal>
   );
 }
 
@@ -789,16 +789,6 @@ const styles = StyleSheet.create({
   },
   arView: {
     flex: 1,
-  },
-  cameraOff: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraOffText: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   overlay: {
     position: 'absolute',
@@ -853,16 +843,6 @@ const styles = StyleSheet.create({
     padding: 6,
     marginBottom: 8,
     alignSelf: 'center',
-  },
-  fullMapPanel: {
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
-  },
-  roomStatsPanel: {
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 8,
   },
   roomStatsRow: {
     flexDirection: 'row',
@@ -925,15 +905,34 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 15,
   },
-  list: {
-    maxHeight: 120,
-    marginTop: 8,
-    borderRadius: 8,
-    padding: 8,
+  mapCard: {
+    alignItems: 'center',
   },
-  listRow: {
-    fontSize: 11,
+  idleSubtitle: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  readingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  readingTime: {
+    fontSize: 12,
     fontVariant: ['tabular-nums'],
-    paddingVertical: 1,
+    width: 82,
+  },
+  readingPos: {
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
+    flex: 1,
+  },
+  readingRssi: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
 });
