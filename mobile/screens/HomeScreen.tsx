@@ -372,7 +372,7 @@ export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onB
       </View>
 
       {routerMode && (
-        <Banner color={theme.info} text="Tap the box where your Wi-Fi router is" />
+        <Banner color={theme.primary} text="📡 Tap the box where your Wi-Fi router is" />
       )}
 
       {/* Reading details */}
