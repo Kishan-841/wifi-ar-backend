@@ -1,34 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { FadeSlideIn, PressableScale } from '../components/anim';
-import { Banner, Button, card } from '../components/DebugUI';
+import { PressableScale } from '../components/anim';
+import { Chip, Table, TwoLine } from '../components/DataTable';
+import { Banner, Button } from '../components/DebugUI';
 import ScanDetailView from '../components/ScanDetailView';
 import { useTheme } from '../components/theme';
 import {
   AdminScanDetail,
   AdminScanSummary,
   AdminUser,
-  adminCreateUser,
   adminDeleteUser,
   adminGetScan,
   adminListScans,
   adminListUsers,
 } from '../lib/api';
 import { getUser } from '../lib/auth';
+import CreateUserScreen from './CreateUserScreen';
 
-/** Admin tab — only mounted for role 'admin'; the API rejects everyone else anyway. */
+type Section = 'users' | 'recordings';
+
+/** Admin area — mounted only for role 'admin'; the API enforces it regardless. */
 export default function AdminScreen() {
   const { theme } = useTheme();
   const me = getUser();
+  const [section, setSection] = useState<Section>('users');
+  const [view, setView] = useState<'list' | 'create'>('list');
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [scans, setScans] = useState<AdminScanSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminScanDetail | null>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -46,160 +47,172 @@ export default function AdminScreen() {
     refresh();
   }, [refresh]);
 
-  const create = async () => {
-    setCreating(true);
-    setError(null);
-    try {
-      const u = await adminCreateUser(name, email, password);
-      setNotice(`Created ${u.name} — they can log in with ${u.email}`);
-      setName('');
-      setEmail('');
-      setPassword('');
-      refresh();
-    } catch (e) {
-      setError(String((e as Error).message ?? e));
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  if (selected) {
+  if (view === 'create') {
     return (
-      <ScanDetailView scan={selected} owner={selected.user} onBack={() => setSelected(null)} />
+      <CreateUserScreen
+        onCancel={() => setView('list')}
+        onDone={(name) => {
+          setNotice(`Created ${name}`);
+          setView('list');
+          refresh();
+        }}
+      />
     );
   }
 
+  if (selected) {
+    return <ScanDetailView scan={selected} owner={selected.user} onBack={() => setSelected(null)} />;
+  }
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      {error && <Banner color={theme.danger} text={error} />}
-      {notice && <Banner color={theme.success} text={notice} />}
-
-      <View style={card(theme)}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Create user</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text }]}
-          value={name}
-          onChangeText={setName}
-          placeholder="Name"
-          placeholderTextColor={theme.muted}
-        />
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text }]}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Email"
-          placeholderTextColor={theme.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-        />
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text }]}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Password (8+ characters)"
-          placeholderTextColor={theme.muted}
-          secureTextEntry
-        />
-        <Button
-          label="Create user"
-          loading={creating}
-          disabled={!name.trim() || !email.trim() || password.length < 8}
-          onPress={create}
-        />
-      </View>
-
-      <View style={card(theme)}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Users</Text>
-        {users === null && <ActivityIndicator color={theme.accent} />}
-        {users?.map((u) => (
-          <View key={u.id} style={styles.userRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.text, fontWeight: '600' }}>
-                {u.name} {u.role === 'admin' ? '· admin' : ''}
-              </Text>
-              <Text style={{ color: theme.muted, fontSize: 12 }}>
-                {u.email} · {u.scanCount} recordings · {u.layoutCount} homes
-              </Text>
-            </View>
-            {u.role !== 'admin' && u.id !== me?.id && (
-              <Text
-                style={[styles.deleteX, { color: theme.muted }]}
-                onPress={async () => {
-                  try {
-                    await adminDeleteUser(u.id);
-                    setNotice(`Deleted ${u.name} and their data`);
-                    refresh();
-                  } catch (e) {
-                    setError(String((e as Error).message ?? e));
-                  }
-                }}
-              >
-                ✕
-              </Text>
-            )}
-          </View>
+    <View style={styles.container}>
+      {/* Section switcher */}
+      <View style={[styles.segments, { backgroundColor: theme.inputBg }]}>
+        {(['users', 'recordings'] as Section[]).map((s) => (
+          <PressableScale
+            key={s}
+            onPress={() => setSection(s)}
+            style={[styles.segment, section === s && { backgroundColor: theme.card }]}
+          >
+            <Text style={{ color: section === s ? theme.text : theme.muted, fontWeight: '600', fontSize: 13 }}>
+              {s === 'users' ? `Users${users ? ` (${users.length})` : ''}` : `Recordings${scans ? ` (${scans.length})` : ''}`}
+            </Text>
+          </PressableScale>
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 20 }]}>All recordings</Text>
-      {scans === null && <ActivityIndicator color={theme.accent} />}
-      {scans?.length === 0 && <Text style={{ color: theme.muted }}>No recordings yet.</Text>}
-      {scans?.map((s, i) => (
-        <FadeSlideIn key={s.id} delay={Math.min(i * 30, 200)}>
-          <PressableScale
-            onPress={async () => {
-              try {
-                setSelected(await adminGetScan(s.id));
-              } catch (e) {
-                setError(String((e as Error).message ?? e));
-              }
-            }}
-            style={[card(theme), styles.scanCard]}
-          >
-            <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>
-              {s.room ?? '(untagged)'}
-              {s.shapeW != null ? `  ${s.shapeW}×${s.shapeH}` : ''}
-            </Text>
-            <Text style={{ color: theme.text, fontSize: 13, marginTop: 2 }}>by {s.user.name}</Text>
-            <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
-              {new Date(s.startedAt).toLocaleString()} · {s.measurementCount} points · {s.ssid ?? '—'}
-            </Text>
-          </PressableScale>
-        </FadeSlideIn>
-      ))}
-    </ScrollView>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {error && <Banner color={theme.danger} text={error} />}
+        {notice && <Banner color={theme.success} text={notice} />}
+
+        {section === 'users' && (
+          <>
+            <View style={styles.toolbar}>
+              <Text style={[styles.heading, { color: theme.text }]}>Users</Text>
+              <Button label="+ New user" onPress={() => { setNotice(null); setView('create'); }} />
+            </View>
+            {users === null ? (
+              <ActivityIndicator color={theme.accent} />
+            ) : (
+              <Table
+                columns={[
+                  { title: 'User', flex: 3 },
+                  { title: 'Role', flex: 1.2 },
+                  { title: 'Rec.', flex: 0.8, align: 'right' },
+                  { title: 'Homes', flex: 0.9, align: 'right' },
+                  { title: '', flex: 0.6, align: 'right' },
+                ]}
+                rows={users.map((u) => ({
+                  key: u.id,
+                  cells: [
+                    <TwoLine key="n" primary={u.name} secondary={u.email} />,
+                    <Chip key="r" label={u.role} color={u.role === 'admin' ? theme.primary : theme.info} />,
+                    String(u.scanCount),
+                    String(u.layoutCount),
+                    u.role !== 'admin' && u.id !== me?.id ? (
+                      <Text
+                        key="x"
+                        style={{ color: theme.danger, fontSize: 18, paddingHorizontal: 6 }}
+                        onPress={async () => {
+                          try {
+                            await adminDeleteUser(u.id);
+                            setNotice(`Deleted ${u.name} and their data`);
+                            refresh();
+                          } catch (e) {
+                            setError(String((e as Error).message ?? e));
+                          }
+                        }}
+                      >
+                        ✕
+                      </Text>
+                    ) : (
+                      <Text key="x" />
+                    ),
+                  ],
+                }))}
+                empty="No users yet."
+              />
+            )}
+          </>
+        )}
+
+        {section === 'recordings' && (
+          <>
+            <Text style={[styles.heading, { color: theme.text, marginBottom: 10 }]}>All recordings</Text>
+            {scans === null ? (
+              <ActivityIndicator color={theme.accent} />
+            ) : (
+              <Table
+                columns={[
+                  { title: 'Room', flex: 2.2 },
+                  { title: 'By', flex: 1.4 },
+                  { title: 'When', flex: 1.6 },
+                  { title: 'Pts', flex: 0.7, align: 'right' },
+                ]}
+                rows={scans.map((s) => ({
+                  key: s.id,
+                  onPress: async () => {
+                    try {
+                      setSelected(await adminGetScan(s.id));
+                    } catch (e) {
+                      setError(String((e as Error).message ?? e));
+                    }
+                  },
+                  cells: [
+                    <TwoLine
+                      key="r"
+                      primary={s.room ?? '(untagged)'}
+                      secondary={s.shapeW != null ? `${s.shapeW}×${s.shapeH} boxes · ${s.ssid ?? '—'}` : `free-form · ${s.ssid ?? '—'}`}
+                    />,
+                    s.user.name,
+                    fmtDate(s.startedAt),
+                    String(s.measurementCount),
+                  ],
+                }))}
+                empty="No recordings yet."
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  segments: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 4,
+    padding: 3,
+    borderRadius: 10,
+  },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
   scroll: {
     padding: 20,
     paddingBottom: 40,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  input: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 14,
-    marginTop: 8,
-  },
-  userRow: {
+  toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
-  deleteX: {
+  heading: {
     fontSize: 18,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  scanCard: {
-    marginTop: 10,
+    fontWeight: '700',
   },
 });

@@ -14,7 +14,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "userInterfaceStyle": "light",
     "ios": {

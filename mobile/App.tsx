@@ -2,7 +2,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import { FadeSlideIn, PressableScale } from './components/anim';
+import BottomBar from './components/BottomBar';
 import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './components/theme';
 import { logout } from './lib/api';
@@ -62,23 +65,13 @@ function AppShell() {
               onPress={() => setSettingsOpen(true)}
               style={[styles.modeToggle, { backgroundColor: theme.card }]}
             >
-              <Text style={styles.modeToggleText}>⚙️</Text>
+              <Ionicons name="settings-outline" size={20} color={theme.muted} />
             </PressableScale>
             <PressableScale onPress={toggle} style={[styles.modeToggle, { backgroundColor: theme.card }]}>
-              <Text style={styles.modeToggleText}>{theme.mode === 'dark' ? '☀️' : '🌙'}</Text>
+              <Ionicons name={theme.mode === 'dark' ? 'sunny-outline' : 'moon-outline'} size={20} color={theme.muted} />
             </PressableScale>
           </View>
         </View>
-        {user && (
-          <View style={styles.tabs}>
-            <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
-            <TabButton label="Measure" active={tab === 'measure'} onPress={() => setTab('measure')} />
-            <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
-            {user.role === 'admin' && (
-              <TabButton label="Admin" active={tab === 'admin'} onPress={() => setTab('admin')} />
-            )}
-          </View>
-        )}
       </View>
 
       {ready && !user && <LoginScreen onOpenSettings={() => setSettingsOpen(true)} />}
@@ -97,29 +90,23 @@ function AppShell() {
           )}
         </FadeSlideIn>
       )}
+      {ready && user && (
+        <BottomBar
+          items={[
+            { key: 'wifi', label: 'Wi-Fi', icon: 'wifi' },
+            { key: 'measure', label: 'Measure', icon: 'scan-outline' },
+            { key: 'home', label: 'Home', icon: 'home-outline' },
+            ...(user.role === 'admin'
+              ? [{ key: 'admin', label: 'Admin', icon: 'shield-checkmark-outline' as const }]
+              : []),
+          ]}
+          active={tab}
+          onChange={(k) => setTab(k as Tab)}
+        />
+      )}
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
-  );
-}
-
-function TabButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  const { theme } = useTheme();
-  return (
-    <PressableScale
-      style={[styles.tab, { backgroundColor: active ? theme.primary : theme.card }]}
-      onPress={onPress}
-    >
-      <Text style={[styles.tabText, { color: active ? '#ffffff' : theme.muted }]}>{label}</Text>
-    </PressableScale>
   );
 }
 
@@ -128,9 +115,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 56,
+    paddingTop: 52,
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   headerTop: {
     flexDirection: 'row',
@@ -162,19 +149,6 @@ const styles = StyleSheet.create({
   },
   modeToggleText: {
     fontSize: 17,
-  },
-  tabs: {
-    flexDirection: 'row',
-    marginTop: 12,
-    gap: 8,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  tabText: {
-    fontWeight: '600',
   },
   content: {
     flex: 1,
