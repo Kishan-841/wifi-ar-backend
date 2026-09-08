@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { PressableScale } from './components/anim';
 import BottomBar from './components/BottomBar';
+import { Avatar } from './components/ListItem';
 import { PagerLockContext } from './components/PagerLock';
 import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './components/theme';
@@ -79,21 +80,21 @@ function AppShell() {
           <Text style={[styles.title, { color: theme.accent }]}>WiFi AR</Text>
           <View style={styles.headerButtons}>
             {user && (
-              <PressableScale
-                onPress={() => logout()}
-                style={[styles.logoutPill, { backgroundColor: theme.card }]}
-              >
-                <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={1}>
-                  {user.name} · Log out
-                </Text>
-              </PressableScale>
+              <>
+                <Avatar name={user.name} size={36} />
+                <PressableScale
+                  onPress={() =>
+                    Alert.alert('Log out?', `Signed in as ${user.name}.`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Log out', style: 'destructive', onPress: () => logout() },
+                    ])
+                  }
+                  style={[styles.modeToggle, { backgroundColor: theme.card }]}
+                >
+                  <Ionicons name="log-out-outline" size={20} color={theme.muted} />
+                </PressableScale>
+              </>
             )}
-            <PressableScale
-              onPress={() => setSettingsOpen(true)}
-              style={[styles.modeToggle, { backgroundColor: theme.card }]}
-            >
-              <Ionicons name="settings-outline" size={20} color={theme.muted} />
-            </PressableScale>
             <PressableScale onPress={toggle} style={[styles.modeToggle, { backgroundColor: theme.card }]}>
               <Ionicons name={theme.mode === 'dark' ? 'sunny-outline' : 'moon-outline'} size={20} color={theme.muted} />
             </PressableScale>
@@ -155,13 +156,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
-  },
-  logoutPill: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    maxWidth: 170,
   },
   modeToggle: {
     width: 40,
