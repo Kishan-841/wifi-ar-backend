@@ -1,6 +1,7 @@
 import { NativeModules } from 'react-native';
 
 import type { Measurement } from './measurement';
+import { getServerUrl } from './settings';
 
 /**
  * In development the backend runs on the same machine as Metro. The app
@@ -24,8 +25,10 @@ const API_PORT = 4000;
  * EXPO_PUBLIC_API_URL at build time (tools/build-apk.sh sets it). Dev builds
  * leave it unset and keep the DHCP-proof derivation.
  */
-function apiBase(): string {
-  return process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`;
+export function apiBase(): string {
+  return (
+    getServerUrl() ?? process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`
+  );
 }
 
 export type UploadResult = { id: string; measurementCount: number };
