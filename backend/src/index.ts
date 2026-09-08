@@ -210,6 +210,6 @@ app.put('/api/layouts/:id', async (req, res) => {
 });
 
 const PORT = Number(process.env.PORT ?? 4000);
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`wifi-ar backend listening on :${PORT}`);
 });
