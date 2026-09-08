@@ -13,6 +13,7 @@
     "android": {
       "package": "com.wifiar.app",
       "versionCode": 2,
+      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA"

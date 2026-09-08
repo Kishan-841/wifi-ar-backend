@@ -19,6 +19,15 @@ function apiHost(): string {
 
 const API_PORT = 4000;
 
+/**
+ * Release builds have no Metro to derive the host from, so the APK bakes in
+ * EXPO_PUBLIC_API_URL at build time (tools/build-apk.sh sets it). Dev builds
+ * leave it unset and keep the DHCP-proof derivation.
+ */
+function apiBase(): string {
+  return process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`;
+}
+
 export type UploadResult = { id: string; measurementCount: number };
 
 export type ScanSummary = {
@@ -63,19 +72,19 @@ export type LayoutSummary = {
 };
 
 export async function listLayouts(): Promise<LayoutSummary[]> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts`);
+  const response = await fetch(`${apiBase()}/api/layouts`);
   if (!response.ok) throw new Error(`layouts list failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function getLayout(id: string): Promise<Layout> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`);
+  const response = await fetch(`${apiBase()}/api/layouts/${id}`);
   if (!response.ok) throw new Error(`layout fetch failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function createLayout(name: string, cols: number, rows: number): Promise<Layout> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts`, {
+  const response = await fetch(`${apiBase()}/api/layouts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, cols, rows }),
@@ -95,7 +104,7 @@ export async function saveLayout(
     placements: Placement[];
   }
 ): Promise<Layout> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`, {
+  const response = await fetch(`${apiBase()}/api/layouts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(update),
@@ -105,27 +114,27 @@ export async function saveLayout(
 }
 
 export async function deleteLayout(id: string): Promise<void> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/layouts/${id}`, {
+  const response = await fetch(`${apiBase()}/api/layouts/${id}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
 export async function deleteScan(id: string): Promise<void> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans/${id}`, {
+  const response = await fetch(`${apiBase()}/api/scans/${id}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
 export async function listScans(): Promise<ScanSummary[]> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`);
+  const response = await fetch(`${apiBase()}/api/scans`);
   if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function getScan(id: string): Promise<ScanDetail> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans/${id}`);
+  const response = await fetch(`${apiBase()}/api/scans/${id}`);
   if (!response.ok) throw new Error(`fetch failed (HTTP ${response.status})`);
   const raw = await response.json();
   return {
@@ -147,7 +156,7 @@ export async function uploadScan(input: {
   shapeH?: number | null;
   measurements: Measurement[];
 }): Promise<UploadResult> {
-  const response = await fetch(`http://${apiHost()}:${API_PORT}/api/scans`, {
+  const response = await fetch(`${apiBase()}/api/scans`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
