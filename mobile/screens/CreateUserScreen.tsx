@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Banner, Button, card } from '../components/DebugUI';
 import { useTheme } from '../components/theme';
+import { useKeyboardHeight } from '../components/useKeyboard';
 import { adminCreateUser } from '../lib/api';
 
 export default function CreateUserScreen({ onDone, onCancel }: { onDone: (name: string) => void; onCancel: () => void }) {
@@ -12,6 +13,12 @@ export default function CreateUserScreen({ onDone, onCancel }: { onDone: (name: 
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const keyboardHeight = useKeyboardHeight();
+
+  useEffect(() => {
+    if (keyboardHeight > 0) scrollRef.current?.scrollToEnd({ animated: true });
+  }, [keyboardHeight]);
 
   const create = async () => {
     setBusy(true);
@@ -29,7 +36,11 @@ export default function CreateUserScreen({ onDone, onCancel }: { onDone: (name: 
   const inputStyle = [styles.input, { backgroundColor: theme.inputBg, color: theme.text }];
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scrollRef}
+      contentContainerStyle={[styles.scroll, { paddingBottom: 40 + keyboardHeight }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Button label="← Users" variant="ghost" onPress={onCancel} />
       <View style={card(theme)}>
         <Text style={[styles.title, { color: theme.text }]}>New user</Text>

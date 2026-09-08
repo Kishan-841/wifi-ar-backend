@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +11,7 @@ import {
 import { PressableScale } from '../components/anim';
 import { Banner, Button } from '../components/DebugUI';
 import { useTheme } from '../components/theme';
+import { useKeyboardHeight } from '../components/useKeyboard';
 import { login } from '../lib/api';
 
 /** Accounts are created by the admin — no signup here, by design. */
@@ -24,6 +23,12 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const keyboardHeight = useKeyboardHeight();
+
+  useEffect(() => {
+    if (keyboardHeight > 0) scrollRef.current?.scrollToEnd({ animated: true });
+  }, [keyboardHeight]);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !busy;
 
@@ -43,11 +48,12 @@ export default function LoginScreen() {
   const fieldStyle = [styles.field, { backgroundColor: theme.inputBg, borderColor: theme.border }];
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={styles.container}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 48 + keyboardHeight }]}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Brand mark — the one bold element on this screen */}
         <View style={styles.brand}>
           <View style={[styles.mark, { backgroundColor: theme.primary }]}>
@@ -108,7 +114,7 @@ export default function LoginScreen() {
           Accounts are created by your admin. Ask them if you need one.
         </Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
