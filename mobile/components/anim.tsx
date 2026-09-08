@@ -12,11 +12,15 @@ export function PressableScale({
   onPress,
   disabled,
   style,
+  containerStyle,
   children,
 }: {
   onPress?: () => void;
   disabled?: boolean;
+  /** Visual style (background, padding, radius) — scales on press. */
   style?: StyleProp<ViewStyle>;
+  /** Layout style for the outer touch target (flex, width, margins). */
+  containerStyle?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -35,6 +39,7 @@ export function PressableScale({
       disabled={disabled}
       onPressIn={() => to(0.96)}
       onPressOut={() => to(1)}
+      style={containerStyle}
     >
       <Animated.View style={[style, { transform: [{ scale }] }, disabled && { opacity: 0.5 }]}>
         {children}

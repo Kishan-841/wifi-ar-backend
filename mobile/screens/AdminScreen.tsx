@@ -77,6 +77,7 @@ export default function AdminScreen() {
           <PressableScale
             key={s}
             onPress={() => setSection(s)}
+            containerStyle={{ flex: 1 }}
             style={[styles.segment, section === s && { backgroundColor: theme.card }]}
           >
             <Text style={{ color: section === s ? theme.text : theme.muted, fontWeight: '600', fontSize: 13 }}>
@@ -196,7 +197,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   segment: {
-    flex: 1,
     alignItems: 'center',
     paddingVertical: 8,
     borderRadius: 8,

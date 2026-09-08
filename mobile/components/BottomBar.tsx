@@ -31,7 +31,7 @@ export default function BottomBar({
         const isActive = it.key === active;
         const color = isActive ? theme.primary : theme.muted;
         return (
-          <PressableScale key={it.key} onPress={() => onChange(it.key)} style={styles.item}>
+          <PressableScale key={it.key} onPress={() => onChange(it.key)} containerStyle={styles.itemSlot} style={styles.item}>
             <Ionicons name={it.icon} size={22} color={color} />
             <Text style={[styles.label, { color, fontWeight: isActive ? '700' : '500' }]}>{it.label}</Text>
           </PressableScale>
@@ -47,10 +47,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 8,
   },
-  item: {
+  itemSlot: {
     flex: 1,
+  },
+  item: {
     alignItems: 'center',
     gap: 3,
+    paddingVertical: 4,
   },
   label: {
     fontSize: 11,
