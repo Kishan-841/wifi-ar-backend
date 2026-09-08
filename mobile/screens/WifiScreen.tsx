@@ -16,7 +16,6 @@ export default function WifiScreen() {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [reading, setReading] = useState<WifiReading | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pollCount, setPollCount] = useState(0);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const requestPermission = useCallback(async () => {
@@ -44,7 +43,6 @@ export default function WifiScreen() {
         const result = await WifiInfoModule.getWifiInfo();
         setReading(result);
         setError(null);
-        setPollCount((n) => n + 1);
       } catch (e) {
         setError(String(e));
       }
@@ -67,11 +65,11 @@ export default function WifiScreen() {
 
         {permission !== 'granted' && (
           <Banner
-            color={theme.warn}
+            color={theme.danger}
             text={
               permission === 'blocked'
-                ? 'Location permission permanently denied — enable it in system settings.'
-                : 'Location permission not granted — SSID/BSSID will be redacted.'
+                ? 'Location permission denied — enable it in system settings to read Wi-Fi details.'
+                : 'Location permission is required to read Wi-Fi details.'
             }
           />
         )}
@@ -82,19 +80,13 @@ export default function WifiScreen() {
           <Button label="Request permission again" onPress={requestPermission} />
         )}
         {reading && !reading.locationEnabled && (
-          <Banner
-            color={theme.warn}
-            text="System location services are OFF — Android redacts SSID/BSSID."
-          />
+          <Banner color={theme.danger} text="Turn on Location services to read Wi-Fi details." />
         )}
         {reading && !reading.wifiConnected && (
           <Banner color={theme.danger} text="Not connected to Wi-Fi." />
         )}
         {redacted && reading?.wifiConnected && (
-          <Banner
-            color={theme.warn}
-            text="Readings are redacted by Android (permission or location services)."
-          />
+          <Banner color={theme.danger} text="Wi-Fi details are hidden — check permission and Location services." />
         )}
 
         <View style={card(theme)}>
