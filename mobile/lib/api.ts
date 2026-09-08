@@ -2,7 +2,6 @@ import { NativeModules } from 'react-native';
 
 import { AuthUser, clearSession, getToken, setSession } from './auth';
 import type { Measurement } from './measurement';
-import { getServerUrl } from './settings';
 
 /**
  * In development the backend runs on the same machine as Metro. The app
@@ -27,9 +26,7 @@ const API_PORT = 4000;
  * leave it unset and keep the DHCP-proof derivation.
  */
 export function apiBase(): string {
-  return (
-    getServerUrl() ?? process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`
-  );
+  return process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`;
 }
 
 /** fetch with the session token; a 401 ends the session (→ login screen). */

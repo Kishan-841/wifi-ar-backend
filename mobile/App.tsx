@@ -11,11 +11,9 @@ import BottomBar from './components/BottomBar';
 import { useConfirm } from './components/ConfirmDialog';
 import { Avatar } from './components/ListItem';
 import { PagerLockContext } from './components/PagerLock';
-import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './components/theme';
 import { logout } from './lib/api';
 import { getUser, loadSession, onAuthChange } from './lib/auth';
-import { loadServerUrl } from './lib/settings';
 import AdminScreen from './screens/AdminScreen';
 import HomeListScreen from './screens/HomeListScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -43,13 +41,12 @@ function AppShell() {
   const [pagerLocked, setPagerLocked] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
   const pagerRef = useRef<PagerView>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState(getUser());
 
-  // Server URL and session must be known before any screen fetches.
+  // The stored session must be known before any screen fetches.
   useEffect(() => {
-    Promise.all([loadServerUrl(), loadSession()]).finally(() => {
+    loadSession().finally(() => {
       setUser(getUser());
       setReady(true);
     });
@@ -111,7 +108,7 @@ function AppShell() {
         </View>
       </View>
 
-      {ready && !user && <LoginScreen onOpenSettings={() => setSettingsOpen(true)} />}
+      {ready && !user && <LoginScreen />}
       {ready && user && (
         <PagerLockContext.Provider value={setPagerLocked}>
           <PagerView
@@ -138,7 +135,6 @@ function AppShell() {
         </PagerLockContext.Provider>
       )}
       {ready && user && <BottomBar items={tabs} active={tab} onChange={(k) => goTo(k as Tab)} />}
-      <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {confirmDialog}
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
