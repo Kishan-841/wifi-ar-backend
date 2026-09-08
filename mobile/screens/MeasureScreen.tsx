@@ -429,7 +429,7 @@ export default function MeasureScreen() {
       roomRef.current = name;
       setCurrentRoom(name);
     }
-  }, [roomDraft, pendingStart, reallyStart]);
+  }, [roomDraft, pendingStart, reallyStart, shapeWDraft, shapeHDraft]);
 
   // Fixed-grid live view: the grid is anchored at the scan start; every
   // measurement maps to one immovable box (or is outside and already ignored).
