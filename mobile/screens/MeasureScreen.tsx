@@ -563,14 +563,7 @@ export default function MeasureScreen() {
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.idleScroll}>
-          <View style={card(theme)}>
-            <Text style={[styles.idleTitle, { color: theme.text }]}>Scan a room</Text>
-            <Text style={{ color: theme.muted, fontSize: 13, marginTop: 4 }}>
-              Name the room, enter its size in boxes, then follow the highlighted boxes.
-            </Text>
-            <Button label="Start new scan" onPress={startStop} />
-          </View>
-          <Text style={[styles.idleSection, { color: theme.muted }]}>Saved rooms</Text>
+          <Text style={[styles.idleTitle, { color: theme.text }]}>Rooms</Text>
           <ScansScreen embedded key={listKey} onCreate={startStop} />
         </ScrollView>
         {roomModal}

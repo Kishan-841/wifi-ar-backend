@@ -86,6 +86,11 @@ export default function ScansScreen({ embedded, onCreate }: { embedded?: boolean
           onAction={onCreate}
         />
       )}
+      {scans && scans.length > 0 && onCreate && (
+        <View style={{ marginBottom: 14 }}>
+          <Button label="Start new scan" onPress={onCreate} />
+        </View>
+      )}
       {scans && scans.length > 0 && (
         <ListGroup>
           {scans.map((s, i) => (
