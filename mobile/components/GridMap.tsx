@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { GridCell } from '../lib/grid';
 import { CELL_SIZE_M } from '../lib/grid';
@@ -23,6 +23,10 @@ type Props = {
   /** Rendered height of the map area in px. */
   height: number;
   showLegend?: boolean;
+  /** Tap a cell to inspect it (cells become pressable). */
+  onCellPress?: (cell: GridCell) => void;
+  /** "cx,cz" of the highlighted cell. */
+  selectedKey?: string | null;
 };
 
 const MAX_CELL_PX = 36;
@@ -46,7 +50,7 @@ function roomCentroids(cells: GridCell[]): { room: string; cx: number; cz: numbe
   }));
 }
 
-export default function GridMap({ cells, currentPose, height, showLegend }: Props) {
+export default function GridMap({ cells, currentPose, height, showLegend, onCellPress, selectedKey }: Props) {
   const { theme } = useTheme();
   if (cells.length === 0) {
     return (
@@ -87,21 +91,28 @@ export default function GridMap({ cells, currentPose, height, showLegend }: Prop
   return (
     <View style={[styles.container, { height }]}>
       <View style={{ width: nx * cellPx, height: nz * cellPx }}>
-        {cells.map((c) => (
-          <View
-            key={`${c.cx},${c.cz}`}
-            style={{
-              position: 'absolute',
-              left: (c.cx - minCx) * cellPx,
-              top: (c.cz - minCz) * cellPx,
-              width: cellPx - 1,
-              height: cellPx - 1,
-              backgroundColor: rssiToColor(c.medianRssi),
-              borderRadius: 2,
-              opacity: c.suspectCount > c.rssiValues.length / 2 ? 0.45 : 1,
-            }}
-          />
-        ))}
+        {cells.map((c) => {
+          const key = `${c.cx},${c.cz}`;
+          const isSelected = selectedKey === key;
+          return (
+            <Pressable
+              key={key}
+              onPress={onCellPress ? () => onCellPress(c) : undefined}
+              style={{
+                position: 'absolute',
+                left: (c.cx - minCx) * cellPx,
+                top: (c.cz - minCz) * cellPx,
+                width: cellPx - 1,
+                height: cellPx - 1,
+                backgroundColor: rssiToColor(c.medianRssi),
+                borderRadius: 2,
+                opacity: c.suspectCount > c.rssiValues.length / 2 ? 0.45 : 1,
+                borderWidth: isSelected ? 2 : 0,
+                borderColor: '#ffffff',
+              }}
+            />
+          );
+        })}
         {showLegend &&
           roomCentroids(cells).map((r) => (
             <Text
