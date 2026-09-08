@@ -158,13 +158,6 @@ export default function WifiScreen() {
           })}
         </View>
 
-        <View style={card(theme)}>
-          <Row label="API source" value={reading?.source ?? '—'} />
-          <Row label="Permission" value={permission} />
-          <Row label="Location services" value={reading ? String(reading.locationEnabled) : '—'} />
-          <Row label="Wi-Fi connected" value={reading ? String(reading.wifiConnected) : '—'} />
-          <Row label="Polls" value={String(pollCount)} />
-        </View>
       </ScrollView>
     </View>
   );

@@ -1,12 +1,14 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import PagerView from 'react-native-pager-view';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { FadeSlideIn, PressableScale } from './components/anim';
+import { PressableScale } from './components/anim';
 import BottomBar from './components/BottomBar';
+import { PagerLockContext } from './components/PagerLock';
 import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './components/theme';
 import { logout } from './lib/api';
@@ -36,6 +38,8 @@ function AppShell() {
   const { theme, toggle } = useTheme();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('measure');
+  const [pagerLocked, setPagerLocked] = useState(false);
+  const pagerRef = useRef<PagerView>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState(getUser());
@@ -48,6 +52,25 @@ function AppShell() {
     });
     return onAuthChange(() => setUser(getUser()));
   }, []);
+
+  const tabs = useMemo(
+    () =>
+      [
+        { key: 'wifi' as Tab, label: 'Wi-Fi', icon: 'wifi' as const },
+        { key: 'measure' as Tab, label: 'Measure', icon: 'scan-outline' as const },
+        { key: 'home' as Tab, label: 'Home', icon: 'home-outline' as const },
+        ...(user?.role === 'admin'
+          ? [{ key: 'admin' as Tab, label: 'Admin', icon: 'shield-checkmark-outline' as const }]
+          : []),
+      ],
+    [user?.role]
+  );
+
+  const goTo = (key: Tab) => {
+    setTab(key);
+    const i = tabs.findIndex((t) => t.key === key);
+    if (i >= 0) pagerRef.current?.setPage(i);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -80,34 +103,31 @@ function AppShell() {
 
       {ready && !user && <LoginScreen onOpenSettings={() => setSettingsOpen(true)} />}
       {ready && user && (
-        <FadeSlideIn key={tab} style={styles.content}>
-          {tab === 'wifi' ? (
-            <WifiScreen />
-          ) : tab === 'measure' ? (
-            <MeasureScreen />
-          ) : tab === 'home' ? (
-            <HomeListScreen />
-          ) : user.role === 'admin' ? (
-            <AdminScreen />
-          ) : (
-            <HomeListScreen />
-          )}
-        </FadeSlideIn>
+        <PagerLockContext.Provider value={setPagerLocked}>
+          <PagerView
+            ref={pagerRef}
+            style={styles.content}
+            initialPage={tabs.findIndex((t) => t.key === tab)}
+            scrollEnabled={!pagerLocked}
+            onPageSelected={(e) => setTab(tabs[e.nativeEvent.position]?.key ?? 'measure')}
+          >
+            {tabs.map((t) => (
+              <View key={t.key} style={styles.page}>
+                {t.key === 'wifi' ? (
+                  <WifiScreen />
+                ) : t.key === 'measure' ? (
+                  <MeasureScreen />
+                ) : t.key === 'home' ? (
+                  <HomeListScreen />
+                ) : (
+                  <AdminScreen />
+                )}
+              </View>
+            ))}
+          </PagerView>
+        </PagerLockContext.Provider>
       )}
-      {ready && user && (
-        <BottomBar
-          items={[
-            { key: 'wifi', label: 'Wi-Fi', icon: 'wifi' },
-            { key: 'measure', label: 'Measure', icon: 'scan-outline' },
-            { key: 'home', label: 'Home', icon: 'home-outline' },
-            ...(user.role === 'admin'
-              ? [{ key: 'admin', label: 'Admin', icon: 'shield-checkmark-outline' as const }]
-              : []),
-          ]}
-          active={tab}
-          onChange={(k) => setTab(k as Tab)}
-        />
-      )}
+      {ready && user && <BottomBar items={tabs} active={tab} onChange={(k) => goTo(k as Tab)} />}
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
     </View>
@@ -154,6 +174,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   content: {
+    flex: 1,
+  },
+  page: {
     flex: 1,
   },
 });

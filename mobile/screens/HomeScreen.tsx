@@ -13,6 +13,7 @@ import {
 
 import { PressableScale } from '../components/anim';
 import { Banner, Button, card } from '../components/DebugUI';
+import { usePagerLock } from '../components/PagerLock';
 import { useTheme } from '../components/theme';
 import {
   Layout,
@@ -41,6 +42,7 @@ const GRID_PRESETS = [24, 32, 48];
 export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onBack: () => void }) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+  const setPagerLocked = usePagerLock();
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -337,7 +339,10 @@ export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onB
                   ? `${selectedCell.cell.dx},${selectedCell.cell.dz}`
                   : null
               }
-              onDragState={setDragging}
+              onDragState={(d) => {
+                setDragging(d);
+                setPagerLocked(d);
+              }}
               onMove={(col, row) =>
                 setPlacements((map) =>
                   new Map(map).set(p.scanId, { ...placementsRef.current.get(p.scanId)!, col, row })
