@@ -208,3 +208,61 @@ export async function uploadScan(input: {
   }
   return response.json();
 }
+
+// ---------- admin (role = admin only; the API enforces it) ----------
+
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  scanCount: number;
+  layoutCount: number;
+};
+
+export type AdminScanSummary = ScanSummary & {
+  createdAt: string;
+  user: { id: string; name: string; email: string };
+};
+
+export type AdminScanDetail = ScanDetail & { user: { id: string; name: string; email: string } };
+
+async function expectOk(response: Response, what: string): Promise<any> {
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `${what} failed (HTTP ${response.status})`);
+  }
+  return response.json();
+}
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  return expectOk(await authed('/api/admin/users'), 'users list');
+}
+
+export async function adminCreateUser(name: string, email: string, password: string): Promise<AdminUser> {
+  return expectOk(
+    await authed('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email: email.trim().toLowerCase(), password }),
+    }),
+    'create user'
+  );
+}
+
+export async function adminDeleteUser(id: string): Promise<void> {
+  await expectOk(await authed(`/api/admin/users/${id}`, { method: 'DELETE' }), 'delete user');
+}
+
+export async function adminListScans(): Promise<AdminScanSummary[]> {
+  return expectOk(await authed('/api/admin/scans'), 'recordings list');
+}
+
+export async function adminGetScan(id: string): Promise<AdminScanDetail> {
+  const raw = await expectOk(await authed(`/api/admin/scans/${id}`), 'recording');
+  return {
+    ...raw,
+    measurements: raw.measurements.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp).getTime() })),
+  };
+}

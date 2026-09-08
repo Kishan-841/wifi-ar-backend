@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from './components/theme';
 import { logout } from './lib/api';
 import { getUser, loadSession, onAuthChange } from './lib/auth';
 import { loadServerUrl } from './lib/settings';
+import AdminScreen from './screens/AdminScreen';
 import HomeListScreen from './screens/HomeListScreen';
 import LoginScreen from './screens/LoginScreen';
 import MeasureScreen from './screens/MeasureScreen';
@@ -15,7 +16,7 @@ import WifiScreen from './screens/WifiScreen';
 
 // The AR debug screen (screens/ArScreen.tsx) is kept for the future in-camera
 // signal overlay but is not routed yet.
-type Tab = 'wifi' | 'measure' | 'home';
+type Tab = 'wifi' | 'measure' | 'home' | 'admin';
 
 export default function App() {
   return (
@@ -73,6 +74,9 @@ function AppShell() {
             <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
             <TabButton label="Measure" active={tab === 'measure'} onPress={() => setTab('measure')} />
             <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
+            {user.role === 'admin' && (
+              <TabButton label="Admin" active={tab === 'admin'} onPress={() => setTab('admin')} />
+            )}
           </View>
         )}
       </View>
@@ -80,7 +84,17 @@ function AppShell() {
       {ready && !user && <LoginScreen onOpenSettings={() => setSettingsOpen(true)} />}
       {ready && user && (
         <FadeSlideIn key={tab} style={styles.content}>
-          {tab === 'wifi' ? <WifiScreen /> : tab === 'measure' ? <MeasureScreen /> : <HomeListScreen />}
+          {tab === 'wifi' ? (
+            <WifiScreen />
+          ) : tab === 'measure' ? (
+            <MeasureScreen />
+          ) : tab === 'home' ? (
+            <HomeListScreen />
+          ) : user.role === 'admin' ? (
+            <AdminScreen />
+          ) : (
+            <HomeListScreen />
+          )}
         </FadeSlideIn>
       )}
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />

@@ -2,12 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FadeSlideIn, PressableScale } from '../components/anim';
-import { Banner, Button, Row, card } from '../components/DebugUI';
+import { Banner, Button, card } from '../components/DebugUI';
 import { useTheme } from '../components/theme';
-import GridMap from '../components/GridMap';
+import ScanDetailView from '../components/ScanDetailView';
 import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/api';
-import { GridCell, addToGrid } from '../lib/grid';
-import { summarizeRooms } from '../lib/measurement';
 
 export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
   const Container: any = embedded ? View : ScrollView;
@@ -54,51 +52,21 @@ export default function ScansScreen({ embedded }: { embedded?: boolean } = {}) {
   }
 
   if (selected) {
-    const grid = new Map<string, GridCell>();
-    for (const m of selected.measurements) addToGrid(grid, m);
-    const cells = Array.from(grid.values());
-    const durationS = Math.round(
-      (new Date(selected.endedAt).getTime() - new Date(selected.startedAt).getTime()) / 1000
-    );
-
     return (
-      <Container contentContainerStyle={embedded ? undefined : styles.scroll}>
-        <Button label="← Back to rooms" variant="ghost" onPress={() => setSelected(null)} />
-        <View style={card(theme)}>
-          <Row label="Network" value={selected.ssid ?? '—'} />
-          <Row label="When" value={new Date(selected.startedAt).toLocaleString()} />
-          <Row label="Duration" value={`${durationS}s`} />
-          <Row label="Points / cells" value={`${selected.measurements.length} / ${cells.length}`} />
-        </View>
-
-        <View style={card(theme)}>
-          <GridMap cells={cells} height={260} showLegend />
-        </View>
-
-        <Button
-          label="Delete this scan"
-          variant="ghost"
-          onPress={async () => {
-            try {
-              await deleteScan(selected.id);
-              setSelected(null);
-              refresh();
-            } catch (e) {
-              setError(String(e));
-            }
-          }}
-        />
-
-        <View style={card(theme)}>
-          {summarizeRooms(selected.measurements).map((r) => (
-            <Row
-              key={r.room}
-              label={r.room}
-              value={`${r.points} pts  median ${r.medianRssi} dBm  (${r.minRssi}…${r.maxRssi})`}
-            />
-          ))}
-        </View>
-      </Container>
+      <ScanDetailView
+        scan={selected}
+        embedded={embedded}
+        onBack={() => setSelected(null)}
+        onDelete={async () => {
+          try {
+            await deleteScan(selected.id);
+            setSelected(null);
+            refresh();
+          } catch (e) {
+            setError(String(e));
+          }
+        }}
+      />
     );
   }
 
