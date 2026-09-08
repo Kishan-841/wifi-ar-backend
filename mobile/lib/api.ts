@@ -1,5 +1,6 @@
 import { NativeModules } from 'react-native';
 
+import { AuthUser, clearSession, getToken, setSession } from './auth';
 import type { Measurement } from './measurement';
 import { getServerUrl } from './settings';
 
@@ -29,6 +30,43 @@ export function apiBase(): string {
   return (
     getServerUrl() ?? process.env.EXPO_PUBLIC_API_URL ?? `http://${apiHost()}:${API_PORT}`
   );
+}
+
+/** fetch with the session token; a 401 ends the session (→ login screen). */
+async function authed(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${apiBase()}${path}`, { ...init, headers });
+  if (response.status === 401) {
+    await clearSession();
+    throw new Error('Session expired — please log in again');
+  }
+  return response;
+}
+
+export async function login(email: string, password: string): Promise<AuthUser> {
+  const response = await fetch(`${apiBase()}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `login failed (HTTP ${response.status})`);
+  }
+  const data = await response.json();
+  await setSession(data.token, data.user);
+  return data.user;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await authed('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // Local session is cleared regardless.
+  }
+  await clearSession();
 }
 
 export type UploadResult = { id: string; measurementCount: number };
@@ -75,19 +113,19 @@ export type LayoutSummary = {
 };
 
 export async function listLayouts(): Promise<LayoutSummary[]> {
-  const response = await fetch(`${apiBase()}/api/layouts`);
+  const response = await authed('/api/layouts');
   if (!response.ok) throw new Error(`layouts list failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function getLayout(id: string): Promise<Layout> {
-  const response = await fetch(`${apiBase()}/api/layouts/${id}`);
+  const response = await authed(`/api/layouts/${id}`);
   if (!response.ok) throw new Error(`layout fetch failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function createLayout(name: string, cols: number, rows: number): Promise<Layout> {
-  const response = await fetch(`${apiBase()}/api/layouts`, {
+  const response = await authed('/api/layouts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, cols, rows }),
@@ -107,7 +145,7 @@ export async function saveLayout(
     placements: Placement[];
   }
 ): Promise<Layout> {
-  const response = await fetch(`${apiBase()}/api/layouts/${id}`, {
+  const response = await authed(`/api/layouts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(update),
@@ -117,27 +155,27 @@ export async function saveLayout(
 }
 
 export async function deleteLayout(id: string): Promise<void> {
-  const response = await fetch(`${apiBase()}/api/layouts/${id}`, {
+  const response = await authed(`/api/layouts/${id}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
 export async function deleteScan(id: string): Promise<void> {
-  const response = await fetch(`${apiBase()}/api/scans/${id}`, {
+  const response = await authed(`/api/scans/${id}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
 export async function listScans(): Promise<ScanSummary[]> {
-  const response = await fetch(`${apiBase()}/api/scans`);
+  const response = await authed('/api/scans');
   if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);
   return response.json();
 }
 
 export async function getScan(id: string): Promise<ScanDetail> {
-  const response = await fetch(`${apiBase()}/api/scans/${id}`);
+  const response = await authed(`/api/scans/${id}`);
   if (!response.ok) throw new Error(`fetch failed (HTTP ${response.status})`);
   const raw = await response.json();
   return {
@@ -159,7 +197,7 @@ export async function uploadScan(input: {
   shapeH?: number | null;
   measurements: Measurement[];
 }): Promise<UploadResult> {
-  const response = await fetch(`${apiBase()}/api/scans`, {
+  const response = await authed('/api/scans', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

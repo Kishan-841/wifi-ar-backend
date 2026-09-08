@@ -5,18 +5,22 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "migrate": "prisma migrate dev"
+    "migrate": "prisma migrate dev",
+    "seed:admin": "tsx src/seed-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
+    "bcryptjs": "^3.0.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
     "prisma": "^6.16.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0",
-    "@types/express": "^5.0.0",
-    "@types/node": "^24.0.0"
+    "typescript": "^5.9.0"
   }
 }

@@ -2,13 +2,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { RSSI_BANDS, buildGrid, rssiToColor, summarizeRooms } from '@/lib/heatmap';
-import { fetchScan } from '@/lib/scans';
+import { fetchScan, getSession } from '@/lib/scans';
+import { redirect } from 'next/navigation';
 
 const CELL_PX = 28;
 
 export default async function ScanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const scan = await fetchScan(id);
+  const session = await getSession();
+  if (!session) redirect('/login');
+  const scan = await fetchScan(session, id);
   if (!scan) notFound();
 
   const cells = buildGrid(scan.measurements);
@@ -41,6 +44,7 @@ export default async function ScanDetailPage({ params }: { params: Promise<{ id:
       </p>
       <h1>{scan.ssid ?? 'Unknown network'}</h1>
       <p className="scanMeta">
+        {scan.user ? `Recorded by ${scan.user.name} · ` : ''}
         {new Date(scan.startedAt).toLocaleString()} · {durationS}s · {scan.measurements.length}{' '}
         points · {cells.length} cells
       </p>

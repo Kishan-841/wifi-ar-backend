@@ -5,8 +5,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FadeSlideIn, PressableScale } from './components/anim';
 import SettingsModal from './components/SettingsModal';
 import { ThemeProvider, useTheme } from './components/theme';
+import { logout } from './lib/api';
+import { getUser, loadSession, onAuthChange } from './lib/auth';
 import { loadServerUrl } from './lib/settings';
 import HomeListScreen from './screens/HomeListScreen';
+import LoginScreen from './screens/LoginScreen';
 import MeasureScreen from './screens/MeasureScreen';
 import WifiScreen from './screens/WifiScreen';
 
@@ -27,10 +30,15 @@ function AppShell() {
   const [tab, setTab] = useState<Tab>('measure');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [user, setUser] = useState(getUser());
 
-  // The saved server URL must be known before any screen fetches.
+  // Server URL and session must be known before any screen fetches.
   useEffect(() => {
-    loadServerUrl().finally(() => setReady(true));
+    Promise.all([loadServerUrl(), loadSession()]).finally(() => {
+      setUser(getUser());
+      setReady(true);
+    });
+    return onAuthChange(() => setUser(getUser()));
   }, []);
 
   return (
@@ -39,6 +47,16 @@ function AppShell() {
         <View style={styles.headerTop}>
           <Text style={[styles.title, { color: theme.accent }]}>WiFi AR</Text>
           <View style={styles.headerButtons}>
+            {user && (
+              <PressableScale
+                onPress={() => logout()}
+                style={[styles.logoutPill, { backgroundColor: theme.card }]}
+              >
+                <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={1}>
+                  {user.name} · Log out
+                </Text>
+              </PressableScale>
+            )}
             <PressableScale
               onPress={() => setSettingsOpen(true)}
               style={[styles.modeToggle, { backgroundColor: theme.card }]}
@@ -50,14 +68,17 @@ function AppShell() {
             </PressableScale>
           </View>
         </View>
-        <View style={styles.tabs}>
-          <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
-          <TabButton label="Measure" active={tab === 'measure'} onPress={() => setTab('measure')} />
-          <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
-        </View>
+        {user && (
+          <View style={styles.tabs}>
+            <TabButton label="Wi-Fi" active={tab === 'wifi'} onPress={() => setTab('wifi')} />
+            <TabButton label="Measure" active={tab === 'measure'} onPress={() => setTab('measure')} />
+            <TabButton label="Home" active={tab === 'home'} onPress={() => setTab('home')} />
+          </View>
+        )}
       </View>
 
-      {ready && (
+      {ready && !user && <LoginScreen onOpenSettings={() => setSettingsOpen(true)} />}
+      {ready && user && (
         <FadeSlideIn key={tab} style={styles.content}>
           {tab === 'wifi' ? <WifiScreen /> : tab === 'measure' ? <MeasureScreen /> : <HomeListScreen />}
         </FadeSlideIn>
@@ -109,6 +130,14 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: 'row',
     gap: 8,
+    alignItems: 'center',
+  },
+  logoutPill: {
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    maxWidth: 170,
   },
   modeToggle: {
     width: 40,
