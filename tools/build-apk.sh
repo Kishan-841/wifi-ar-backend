@@ -50,5 +50,7 @@ mkdir -p "$ROOT/dist"
 OUT="$ROOT/dist/wifi-ar-v${VERSION}.apk"
 cp android/app/build/outputs/apk/release/app-release.apk "$OUT"
 SIZE=$(du -h "$OUT" | cut -f1)
+# Older builds are ~100 MB each and always rebuildable from git: keep only this one.
+find "$ROOT/dist" -name 'wifi-ar-v*.apk' ! -name "$(basename "$OUT")" -delete
 echo "✓ built $OUT ($SIZE, versionCode $CODE)"
 echo "  share it, or install directly:  adb install -r \"$OUT\""
