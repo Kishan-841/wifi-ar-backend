@@ -7,6 +7,10 @@
 # Only Caddy publishes a port. Postgres and the API are reachable solely on the
 # private compose network, so the database is never exposed to the internet.
 
+# Fixed project name: volumes and network become wifi-ar_*, never colliding
+# with another repo's deploy/ folder on the same host.
+name: wifi-ar
+
 services:
   db:
     image: postgres:15-alpine

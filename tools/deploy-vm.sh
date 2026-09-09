@@ -15,7 +15,7 @@ set -euo pipefail
 TARGET="${1:?usage: deploy-vm.sh user@host [seed]}"
 ACTION="${2:-}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REMOTE_DIR="~/wifi-ar"
+REMOTE_DIR="~/wifi-ar-backend"
 
 echo "→ syncing backend/ and deploy/ to $TARGET:$REMOTE_DIR"
 ssh "$TARGET" "mkdir -p $REMOTE_DIR"
