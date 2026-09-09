@@ -15,6 +15,22 @@ app.use(express.json({ limit: '10mb' }));
 
 // ---------- schemas ----------
 
+/**
+ * Paging for list endpoints: ?limit=20&offset=0&q=kitchen
+ * Offset paging (not cursors) because lists are small per user, searches
+ * change the ordering anyway, and "showing 20 of 57" needs a total.
+ */
+function pageParams(req: express.Request) {
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+  const q = String(req.query.q ?? '').trim().slice(0, 100);
+  return { limit, offset, q };
+}
+const contains = (q: string) => ({ contains: q, mode: 'insensitive' as const });
+function page<T>(items: T[], total: number, offset: number, limit: number) {
+  return { items, total, nextOffset: offset + items.length < total ? offset + limit : null };
+}
+
 const measurementSchema = z.object({
   timestamp: z.number().int().positive(),
   x: z.number(),
@@ -125,25 +141,42 @@ app.post('/api/scans', async (req, res) => {
 });
 
 app.get('/api/scans', async (req, res) => {
-  const scans = await prisma.scan.findMany({
-    where: { userId: req.user!.id },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      _count: { select: { measurements: true } },
-      measurements: { select: { room: true }, where: { room: { not: null } }, take: 1 },
-    },
-  });
+  const { limit, offset, q } = pageParams(req);
+  const where = {
+    userId: req.user!.id,
+    ...(q
+      ? { OR: [{ ssid: contains(q) }, { measurements: { some: { room: contains(q) } } }] }
+      : {}),
+  };
+  const [scans, total] = await Promise.all([
+    prisma.scan.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+      include: {
+        _count: { select: { measurements: true } },
+        measurements: { select: { room: true }, where: { room: { not: null } }, take: 1 },
+      },
+    }),
+    prisma.scan.count({ where }),
+  ]);
   res.json(
-    scans.map((s) => ({
-      id: s.id,
-      startedAt: s.startedAt,
-      endedAt: s.endedAt,
-      ssid: s.ssid,
-      shapeW: s.shapeW,
-      shapeH: s.shapeH,
-      room: s.measurements[0]?.room ?? null,
-      measurementCount: s._count.measurements,
-    }))
+    page(
+      scans.map((s) => ({
+        id: s.id,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        ssid: s.ssid,
+        shapeW: s.shapeW,
+        shapeH: s.shapeH,
+        room: s.measurements[0]?.room ?? null,
+        measurementCount: s._count.measurements,
+      })),
+      total,
+      offset,
+      limit
+    )
   );
 });
 
@@ -181,19 +214,31 @@ app.post('/api/layouts', async (req, res) => {
 });
 
 app.get('/api/layouts', async (req, res) => {
-  const layouts = await prisma.layout.findMany({
-    where: { userId: req.user!.id },
-    orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { placements: true } } },
-  });
+  const { limit, offset, q } = pageParams(req);
+  const where = { userId: req.user!.id, ...(q ? { name: contains(q) } : {}) };
+  const [layouts, total] = await Promise.all([
+    prisma.layout.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+      include: { _count: { select: { placements: true } } },
+    }),
+    prisma.layout.count({ where }),
+  ]);
   res.json(
-    layouts.map((l) => ({
-      id: l.id,
-      name: l.name,
-      cols: l.cols,
-      rows: l.rows,
-      placementCount: l._count.placements,
-    }))
+    page(
+      layouts.map((l) => ({
+        id: l.id,
+        name: l.name,
+        cols: l.cols,
+        rows: l.rows,
+        placementCount: l._count.placements,
+      })),
+      total,
+      offset,
+      limit
+    )
   );
 });
 
@@ -253,21 +298,34 @@ app.put('/api/layouts/:id', async (req, res) => {
 
 app.use('/api/admin', requireAdmin);
 
-app.get('/api/admin/users', async (_req, res) => {
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: 'asc' },
-    include: { _count: { select: { scans: true, layouts: true } } },
-  });
+app.get('/api/admin/users', async (req, res) => {
+  const { limit, offset, q } = pageParams(req);
+  const where = q ? { OR: [{ name: contains(q) }, { email: contains(q) }] } : {};
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      skip: offset,
+      take: limit,
+      include: { _count: { select: { scans: true, layouts: true } } },
+    }),
+    prisma.user.count({ where }),
+  ]);
   res.json(
-    users.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      createdAt: u.createdAt,
-      scanCount: u._count.scans,
-      layoutCount: u._count.layouts,
-    }))
+    page(
+      users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        createdAt: u.createdAt,
+        scanCount: u._count.scans,
+        layoutCount: u._count.layouts,
+      })),
+      total,
+      offset,
+      limit
+    )
   );
 });
 
@@ -301,28 +359,50 @@ app.delete('/api/admin/users/:id', async (req, res) => {
   res.json({ deleted: req.params.id }); // sessions, scans, layouts cascade
 });
 
-app.get('/api/admin/scans', async (_req, res) => {
-  const scans = await prisma.scan.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-      _count: { select: { measurements: true } },
-      measurements: { select: { room: true }, where: { room: { not: null } }, take: 1 },
-    },
-  });
+app.get('/api/admin/scans', async (req, res) => {
+  const { limit, offset, q } = pageParams(req);
+  const where = q
+    ? {
+        OR: [
+          { ssid: contains(q) },
+          { measurements: { some: { room: contains(q) } } },
+          { user: { name: contains(q) } },
+          { user: { email: contains(q) } },
+        ],
+      }
+    : {};
+  const [scans, total] = await Promise.all([
+    prisma.scan.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        _count: { select: { measurements: true } },
+        measurements: { select: { room: true }, where: { room: { not: null } }, take: 1 },
+      },
+    }),
+    prisma.scan.count({ where }),
+  ]);
   res.json(
-    scans.map((s) => ({
-      id: s.id,
-      startedAt: s.startedAt,
-      endedAt: s.endedAt,
-      createdAt: s.createdAt,
-      ssid: s.ssid,
-      shapeW: s.shapeW,
-      shapeH: s.shapeH,
-      room: s.measurements[0]?.room ?? null,
-      measurementCount: s._count.measurements,
-      user: s.user,
-    }))
+    page(
+      scans.map((s) => ({
+        id: s.id,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        createdAt: s.createdAt,
+        ssid: s.ssid,
+        shapeW: s.shapeW,
+        shapeH: s.shapeH,
+        room: s.measurements[0]?.room ?? null,
+        measurementCount: s._count.measurements,
+        user: s.user,
+      })),
+      total,
+      offset,
+      limit
+    )
   );
 });
 

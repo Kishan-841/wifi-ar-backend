@@ -384,10 +384,10 @@ export default function MeasureScreen() {
     setPendingStart(true);
     setRoomModalVisible(true);
     // Offer existing rooms for re-scanning (newest scan per room name).
-    listScans()
-      .then((scans) => {
+    listScans({ limit: 50 })
+      .then((pg) => {
         const seen = new Map<string, ScanSummary>();
-        for (const sc of scans) {
+        for (const sc of pg.items) {
           if (sc.room && !seen.has(sc.room)) seen.set(sc.room, sc);
         }
         setKnownRooms(Array.from(seen.values()));

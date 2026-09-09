@@ -21,6 +21,7 @@ import {
   getLayout,
   getScan,
   listScans,
+  ScanSummary,
   saveLayout,
 } from '../lib/api';
 import { rssiBandOf } from '../lib/heatmapColor';
@@ -39,7 +40,16 @@ const BOX_METERS = 0.5;
 
 const GRID_PRESETS = [24, 32, 48];
 
-export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onBack: () => void }) {
+export default function HomeScreen({
+  layoutId,
+  onBack,
+  onSaved,
+}: {
+  layoutId: string;
+  onBack: () => void;
+  /** Called after a successful save; the parent shows the confirmation and closes the editor. */
+  onSaved?: (name: string) => void;
+}) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const setPagerLocked = usePagerLock();
@@ -76,7 +86,13 @@ export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onB
     try {
       const lay = await getLayout(layoutId);
 
-      const scans = await listScans(); // newest first
+      // Newest first. The board needs every room, so page through all of them.
+      const scans: ScanSummary[] = [];
+      for (let offset: number | null = 0; offset != null; ) {
+        const pg = await listScans({ offset, limit: 50 });
+        scans.push(...pg.items);
+        offset = pg.nextOffset;
+      }
       const details = (await Promise.all(scans.map((s) => getScan(s.id)))).filter(
         (d) => d.measurements.length > 0
       );
@@ -207,8 +223,12 @@ export default function HomeScreen({ layoutId, onBack }: { layoutId: string; onB
         routerRow: router?.row ?? null,
         placements: Array.from(placements.values()),
       });
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 2000);
+      if (onSaved) {
+        onSaved(layout.name);
+      } else {
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2000);
+      }
     } catch (e) {
       setErrorText(String(e));
     } finally {

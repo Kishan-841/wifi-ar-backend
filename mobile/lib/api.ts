@@ -101,6 +101,18 @@ export type Layout = {
   placements: Placement[];
 };
 
+/** Server paging: ?limit&offset&q → { items, total, nextOffset }. */
+export type ListParams = { q?: string; offset?: number; limit?: number };
+export type Page<T> = { items: T[]; total: number; nextOffset: number | null };
+function listQuery(p: ListParams = {}): string {
+  const sp = new URLSearchParams();
+  if (p.q) sp.set('q', p.q);
+  if (p.offset) sp.set('offset', String(p.offset));
+  if (p.limit) sp.set('limit', String(p.limit));
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export type LayoutSummary = {
   id: string;
   name: string;
@@ -109,8 +121,8 @@ export type LayoutSummary = {
   placementCount: number;
 };
 
-export async function listLayouts(): Promise<LayoutSummary[]> {
-  const response = await authed('/api/layouts');
+export async function listLayouts(p: ListParams = {}): Promise<Page<LayoutSummary>> {
+  const response = await authed(`/api/layouts${listQuery(p)}`);
   if (!response.ok) throw new Error(`layouts list failed (HTTP ${response.status})`);
   return response.json();
 }
@@ -165,8 +177,8 @@ export async function deleteScan(id: string): Promise<void> {
   if (!response.ok) throw new Error(`delete failed (HTTP ${response.status})`);
 }
 
-export async function listScans(): Promise<ScanSummary[]> {
-  const response = await authed('/api/scans');
+export async function listScans(p: ListParams = {}): Promise<Page<ScanSummary>> {
+  const response = await authed(`/api/scans${listQuery(p)}`);
   if (!response.ok) throw new Error(`list failed (HTTP ${response.status})`);
   return response.json();
 }
@@ -233,8 +245,8 @@ async function expectOk(response: Response, what: string): Promise<any> {
   return response.json();
 }
 
-export async function adminListUsers(): Promise<AdminUser[]> {
-  return expectOk(await authed('/api/admin/users'), 'users list');
+export async function adminListUsers(p: ListParams = {}): Promise<Page<AdminUser>> {
+  return expectOk(await authed(`/api/admin/users${listQuery(p)}`), 'users list');
 }
 
 export async function adminCreateUser(name: string, email: string, password: string): Promise<AdminUser> {
@@ -252,8 +264,8 @@ export async function adminDeleteUser(id: string): Promise<void> {
   await expectOk(await authed(`/api/admin/users/${id}`, { method: 'DELETE' }), 'delete user');
 }
 
-export async function adminListScans(): Promise<AdminScanSummary[]> {
-  return expectOk(await authed('/api/admin/scans'), 'recordings list');
+export async function adminListScans(p: ListParams = {}): Promise<Page<AdminScanSummary>> {
+  return expectOk(await authed(`/api/admin/scans${listQuery(p)}`), 'recordings list');
 }
 
 export async function adminGetScan(id: string): Promise<AdminScanDetail> {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '../components/anim';
@@ -7,11 +7,11 @@ import { useConfirm } from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
 import { Avatar, Chip, IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
+import { LoadMore, SearchBar } from '../components/Paging';
 import ScanDetailView from '../components/ScanDetailView';
 import { useTheme } from '../components/theme';
 import {
   AdminScanDetail,
-  AdminScanSummary,
   AdminUser,
   adminDeleteUser,
   adminGetScan,
@@ -19,6 +19,7 @@ import {
   adminListUsers,
 } from '../lib/api';
 import { getUser } from '../lib/auth';
+import { usePagedList } from '../lib/usePagedList';
 import { rssiBandOf } from '../lib/heatmapColor';
 import CreateUserScreen from './CreateUserScreen';
 
@@ -35,27 +36,21 @@ export default function AdminScreen() {
   const me = getUser();
   const [section, setSection] = useState<Section>('users');
   const [view, setView] = useState<'list' | 'create'>('list');
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [scans, setScans] = useState<AdminScanSummary[] | null>(null);
+  const userList = usePagedList(adminListUsers);
+  const scanList = usePagedList(adminListScans);
+  const users = userList.items;
+  const scans = scanList.items;
   const [selected, setSelected] = useState<AdminScanDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
+  const { refresh: refreshUsers } = userList;
+  const { refresh: refreshScans } = scanList;
   const refresh = useCallback(async () => {
     setError(null);
-    try {
-      const [u, s] = await Promise.all([adminListUsers(), adminListScans()]);
-      setUsers(u);
-      setScans(s);
-    } catch (e) {
-      setError(String((e as Error).message ?? e));
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+    await Promise.all([refreshUsers(), refreshScans()]);
+  }, [refreshUsers, refreshScans]);
   useRefetchOnFocus('admin', refresh);
 
   const [pulling, setPulling] = useState(false);
@@ -114,7 +109,7 @@ export default function AdminScreen() {
             style={[styles.segment, section === s && { backgroundColor: theme.card }]}
           >
             <Text style={{ color: section === s ? theme.text : theme.muted, fontWeight: '600', fontSize: 13 }}>
-              {s === 'users' ? `Users${users ? ` · ${users.length}` : ''}` : `Recordings${scans ? ` · ${scans.length}` : ''}`}
+              {s === 'users' ? `Users${users ? ` · ${userList.total}` : ''}` : `Recordings${scans ? ` · ${scanList.total}` : ''}`}
             </Text>
           </PressableScale>
         ))}
@@ -127,12 +122,20 @@ export default function AdminScreen() {
         }
       >
         {error && <Banner color={theme.danger} text={error} />}
+        {userList.error && section === 'users' && <Banner color={theme.danger} text={userList.error} />}
+        {scanList.error && section === 'recordings' && <Banner color={theme.danger} text={scanList.error} />}
         {notice && <Banner color={theme.success} text={notice} />}
 
         {section === 'users' && (
           <>
             <Button label="+ New user" onPress={() => { setNotice(null); setView('create'); }} />
             <View style={{ height: 14 }} />
+            <SearchBar
+              value={userList.query}
+              onChange={userList.setQuery}
+              placeholder="Search by name or email"
+              busy={userList.searching || (userList.loading && users !== null)}
+            />
             {users === null ? (
               <ActivityIndicator color={theme.accent} />
             ) : (
@@ -155,19 +158,41 @@ export default function AdminScreen() {
                 ))}
               </ListGroup>
             )}
+            {users && (
+              <LoadMore
+                shown={users.length}
+                total={userList.total}
+                hasMore={userList.hasMore}
+                loading={userList.loadingMore}
+                onPress={userList.loadMore}
+                noun="users"
+              />
+            )}
           </>
         )}
 
         {section === 'recordings' && (
           <>
+            {(scanList.total > 0 || scanList.query.length > 0) && (
+              <SearchBar
+                value={scanList.query}
+                onChange={scanList.setQuery}
+                placeholder="Search room, network or user"
+                busy={scanList.searching || (scanList.loading && scans !== null)}
+              />
+            )}
             {scans === null ? (
               <ActivityIndicator color={theme.accent} />
             ) : scans.length === 0 ? (
-              <EmptyState
-                icon="grid-outline"
-                title="No recordings yet"
-                message="Recordings appear here as users scan and upload rooms."
-              />
+              scanList.query.trim() ? (
+                <EmptyState icon="search-outline" title="No matches" message={`Nothing matching “${scanList.query.trim()}”.`} />
+              ) : (
+                <EmptyState
+                  icon="grid-outline"
+                  title="No recordings yet"
+                  message="Recordings appear here as users scan and upload rooms."
+                />
+              )
             ) : (
               <ListGroup>
                 {scans.map((s, i) => (
@@ -189,6 +214,16 @@ export default function AdminScreen() {
                   />
                 ))}
               </ListGroup>
+            )}
+            {scans && (
+              <LoadMore
+                shown={scans.length}
+                total={scanList.total}
+                hasMore={scanList.hasMore}
+                loading={scanList.loadingMore}
+                onPress={scanList.loadMore}
+                noun="recordings"
+              />
             )}
           </>
         )}

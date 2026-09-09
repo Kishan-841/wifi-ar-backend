@@ -1,40 +1,52 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { useRefetchOnFocus } from '../components/ActiveTab';
 import { useConfirm } from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
 import { IconBadge, IconButton, ListGroup, ListItem } from '../components/ListItem';
+import { LoadMore, SearchBar } from '../components/Paging';
 import { useTheme } from '../components/theme';
-import { LayoutSummary, createLayout, deleteLayout, listLayouts } from '../lib/api';
+import { createLayout, deleteLayout, listLayouts } from '../lib/api';
+import { usePagedList } from '../lib/usePagedList';
 import HomeScreen from './HomeScreen';
 
 /** Home tab: your saved homes first, "add new home" below; tap one to edit. */
 export default function HomeListScreen() {
   const { theme } = useTheme();
-  const [homes, setHomes] = useState<LayoutSummary[] | null>(null);
+  const list = usePagedList(listLayouts);
+  const { items: homes, refresh } = list;
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [creating, setCreating] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
-  const refresh = useCallback(async () => {
-    setError(null);
-    try {
-      setHomes(await listLayouts());
-    } catch (e) {
-      setError(String(e));
-      setHomes([]);
-    }
-  }, []);
+  useRefetchOnFocus('home', refresh);
 
+  // Coming back from the editor: the placement count may have changed.
   useEffect(() => {
     if (!openId) refresh();
   }, [refresh, openId]);
-  useRefetchOnFocus('home', refresh);
+
+  // A success notice is transient; it must not outlive the next action.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const [pulling, setPulling] = useState(false);
   const pullRefresh = useCallback(async () => {
@@ -63,8 +75,20 @@ export default function HomeListScreen() {
   }, [nameDraft]);
 
   if (openId) {
-    return <HomeScreen layoutId={openId} onBack={() => setOpenId(null)} />;
+    return (
+      <HomeScreen
+        layoutId={openId}
+        onBack={() => setOpenId(null)}
+        onSaved={(name) => {
+          setNotice(`${name} saved ✓`);
+          setOpenId(null);
+        }}
+      />
+    );
   }
+
+  const isEmpty = homes?.length === 0;
+  const isFilteredEmpty = isEmpty && list.query.trim().length > 0;
 
   return (
     <View style={styles.container}>
@@ -75,8 +99,19 @@ export default function HomeListScreen() {
         }
       >
         {error && <Banner color={theme.danger} text={error} />}
+        {list.error && <Banner color={theme.danger} text={list.error} />}
+        {notice && <Banner color={theme.success} text={notice} />}
+
+        {(list.total > 0 || list.query.length > 0) && (
+          <SearchBar
+            value={list.query}
+            onChange={list.setQuery}
+            placeholder="Search homes"
+            busy={list.searching || (list.loading && homes !== null)}
+          />
+        )}
         {homes === null && <ActivityIndicator color={theme.accent} size="large" />}
-        {homes?.length === 0 && (
+        {isEmpty && !isFilteredEmpty && (
           <EmptyState
             icon="home-outline"
             title="No homes yet"
@@ -84,6 +119,9 @@ export default function HomeListScreen() {
             actionLabel="+ Add new home"
             onAction={() => setNaming(true)}
           />
+        )}
+        {isFilteredEmpty && (
+          <EmptyState icon="search-outline" title="No matches" message={`No home named “${list.query.trim()}”.`} />
         )}
         {homes && homes.length > 0 && (
           <ListGroup>
@@ -110,6 +148,7 @@ export default function HomeListScreen() {
                       if (!ok) return;
                       try {
                         await deleteLayout(h.id);
+                        setNotice(`Deleted ${h.name}`);
                         refresh();
                       } catch (e) {
                         setError(String(e));
@@ -120,6 +159,16 @@ export default function HomeListScreen() {
               />
             ))}
           </ListGroup>
+        )}
+        {homes && (
+          <LoadMore
+            shown={homes.length}
+            total={list.total}
+            hasMore={list.hasMore}
+            loading={list.loadingMore}
+            onPress={list.loadMore}
+            noun="homes"
+          />
         )}
         {homes && homes.length > 0 && (
           <>

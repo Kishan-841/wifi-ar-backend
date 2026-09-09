@@ -1,5 +1,5 @@
-import { ReactNode, createContext, useContext, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Theme tokens — Emerald identity (user-specified palette: #10B981 primary,
@@ -66,19 +66,33 @@ const light: Theme = {
 };
 
 const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
-  theme: dark,
+  theme: light,
   toggle: () => {},
 });
 
+const THEME_KEY = 'wifi-ar.theme';
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const system = useColorScheme(); // follows the Android system setting
-  const [override, setOverride] = useState<'dark' | 'light' | null>(null);
-  const mode = override ?? (system === 'light' ? 'light' : 'dark');
+  // Light by default; the toggle persists so the choice survives restarts.
+  // (The system dark/light setting is deliberately ignored — the user picks.)
+  const [mode, setMode] = useState<'dark' | 'light'>('light');
+
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_KEY)
+      .then((saved) => {
+        if (saved === 'dark' || saved === 'light') setMode(saved);
+      })
+      .catch(() => {});
+  }, []);
 
   const value = useMemo(
     () => ({
       theme: mode === 'light' ? light : dark,
-      toggle: () => setOverride(mode === 'light' ? 'dark' : 'light'),
+      toggle: () => {
+        const next = mode === 'light' ? 'dark' : 'light';
+        setMode(next);
+        AsyncStorage.setItem(THEME_KEY, next).catch(() => {});
+      },
     }),
     [mode]
   );
