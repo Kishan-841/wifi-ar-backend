@@ -5,7 +5,7 @@
 #   docker compose exec api npm run seed:admin      (first time only)
 #
 # TLS and the public hostname are handled by the host's nginx (see nginx/),
-# which proxies https://202-136-68-13.sslip.io → 127.0.0.1:PUBLIC_PORT.
+# which proxies https://wifi-ar.202-136-68-13.sslip.io → 127.0.0.1:PUBLIC_PORT.
 # The API is bound to localhost only and Postgres publishes nothing, so
 # neither is reachable from the internet directly.
 
