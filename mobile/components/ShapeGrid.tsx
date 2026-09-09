@@ -16,11 +16,25 @@ type Props = {
   /** The box the user should stand in next. */
   target?: { dx: number; dz: number } | null;
   onBoxPress?: (dx: number, dz: number) => void;
+  /** Space the grid may occupy; boxes shrink to fit (never overflow). */
+  maxWidth?: number;
+  maxHeight?: number;
 };
 
-export default function ShapeGrid({ w, h, colors, skipped, target, onBoxPress }: Props) {
+export default function ShapeGrid({
+  w,
+  h,
+  colors,
+  skipped,
+  target,
+  onBoxPress,
+  maxWidth = 300,
+  maxHeight = 170,
+}: Props) {
   const { theme } = useTheme();
-  const cellPx = Math.max(12, Math.min(30, Math.floor(300 / w), Math.floor(170 / h)));
+  // Fit first, then clamp: a 60-box side gets tiny cells rather than a grid
+  // that runs off the screen.
+  const cellPx = Math.max(4, Math.min(30, Math.floor(maxWidth / w), Math.floor(maxHeight / h)));
   const recorded = colors.size;
   const skippedCount = skipped?.size ?? 0;
   const total = w * h;

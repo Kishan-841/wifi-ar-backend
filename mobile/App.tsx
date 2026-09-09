@@ -10,6 +10,7 @@ import { PressableScale } from './components/anim';
 import BottomBar from './components/BottomBar';
 import { useConfirm } from './components/ConfirmDialog';
 import { Avatar } from './components/ListItem';
+import { ActiveTabContext } from './components/ActiveTab';
 import { PagerLockContext } from './components/PagerLock';
 import { ThemeProvider, useTheme } from './components/theme';
 import { logout } from './lib/api';
@@ -111,6 +112,7 @@ function AppShell() {
       {ready && !user && <LoginScreen />}
       {ready && user && (
         <PagerLockContext.Provider value={setPagerLocked}>
+          <ActiveTabContext.Provider value={tab}>
           <PagerView
             ref={pagerRef}
             style={styles.content}
@@ -132,6 +134,7 @@ function AppShell() {
               </View>
             ))}
           </PagerView>
+          </ActiveTabContext.Provider>
         </PagerLockContext.Provider>
       )}
       {ready && user && <BottomBar items={tabs} active={tab} onChange={(k) => goTo(k as Tab)} />}

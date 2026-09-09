@@ -9,7 +9,11 @@ import { useTheme } from '../components/theme';
 import ScanDetailView from '../components/ScanDetailView';
 import { ScanDetail, ScanSummary, deleteScan, getScan, listScans } from '../lib/api';
 
-export default function ScansScreen({ embedded, onCreate }: { embedded?: boolean; onCreate?: () => void } = {}) {
+export default function ScansScreen({
+  embedded,
+  onCreate,
+  refreshToken = 0,
+}: { embedded?: boolean; onCreate?: () => void; refreshToken?: number } = {}) {
   const Container: any = embedded ? View : ScrollView;
   const { theme } = useTheme();
   const [scans, setScans] = useState<ScanSummary[] | null>(null);
@@ -30,9 +34,10 @@ export default function ScansScreen({ embedded, onCreate }: { embedded?: boolean
     }
   }, []);
 
+  // Re-fetch whenever the parent bumps the token (tab focus, pull-to-refresh).
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, refreshToken]);
 
   const openScan = useCallback(async (id: string) => {
     setLoading(true);

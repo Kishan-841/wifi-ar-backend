@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useRefetchOnFocus } from '../components/ActiveTab';
 import { useConfirm } from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
@@ -33,6 +34,17 @@ export default function HomeListScreen() {
   useEffect(() => {
     if (!openId) refresh();
   }, [refresh, openId]);
+  useRefetchOnFocus('home', refresh);
+
+  const [pulling, setPulling] = useState(false);
+  const pullRefresh = useCallback(async () => {
+    setPulling(true);
+    try {
+      await refresh();
+    } finally {
+      setPulling(false);
+    }
+  }, [refresh]);
 
   const create = useCallback(async () => {
     const name = nameDraft.trim();
@@ -56,7 +68,12 @@ export default function HomeListScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={pulling} onRefresh={pullRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+        }
+      >
         {error && <Banner color={theme.danger} text={error} />}
         {homes === null && <ActivityIndicator color={theme.accent} size="large" />}
         {homes?.length === 0 && (

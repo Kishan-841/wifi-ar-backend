@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   PermissionsAndroid,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ViroARSceneNavigator } from '@reactvision/react-viro';
 
+import { useRefetchOnFocus } from '../components/ActiveTab';
 import { PulseDot } from '../components/anim';
 import {
   Pose,
@@ -91,6 +95,13 @@ export default function MeasureScreen() {
   const [knownRooms, setKnownRooms] = useState<ScanSummary[]>([]);
   const [currentShape, setCurrentShape] = useState<{ w: number; h: number } | null>(null);
   const [listKey, setListKey] = useState(0);
+  // Bumped to make the rooms list re-fetch without remounting it.
+  const [listRefresh, setListRefresh] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const bumpList = useCallback(() => setListRefresh((n) => n + 1), []);
+  useRefetchOnFocus('measure', bumpList);
+  const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const shapeRef = useRef<{ w: number | null; h: number | null }>({ w: null, h: null });
 
@@ -572,9 +583,24 @@ export default function MeasureScreen() {
   if (!running && measurements.length === 0) {
     return (
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.idleScroll}>
+        <ScrollView
+          contentContainerStyle={styles.idleScroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={pulling}
+              onRefresh={() => {
+                setPulling(true);
+                bumpList();
+                // The list owns its request; this only shows the spinner briefly.
+                setTimeout(() => setPulling(false), 600);
+              }}
+              tintColor={theme.accent}
+              colors={[theme.accent]}
+            />
+          }
+        >
           <Text style={[styles.idleTitle, { color: theme.text }]}>Rooms</Text>
-          <ScansScreen embedded key={listKey} onCreate={startStop} />
+          <ScansScreen embedded key={listKey} refreshToken={listRefresh} onCreate={startStop} />
         </ScrollView>
         {roomModal}
       </View>
@@ -704,7 +730,7 @@ export default function MeasureScreen() {
           style={styles.arView}
         />
 
-        <View style={styles.overlay} pointerEvents="box-none">
+        <View style={[styles.overlay, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
           {currentShape && guided && (
             <View style={[styles.miniMapPanel, { backgroundColor: theme.overlayCard }]}>
               <ShapeGrid
@@ -714,6 +740,8 @@ export default function MeasureScreen() {
                 skipped={guided.skipped}
                 target={guidedTarget}
                 onBoxPress={jumpToBox}
+                maxWidth={window.width - 48}
+                maxHeight={Math.round(window.height * 0.3)}
               />
               <Text style={[styles.guideHint, { color: guidedComplete ? '#22C55E' : theme.text }]}>
                 {guided.sampling
@@ -736,17 +764,18 @@ export default function MeasureScreen() {
               <Text style={styles.recordingText}>Recording</Text>
             </View>
             <Row label="Tracking" value={tracking.state} />
-            <Row label="Current room" value={currentRoom ?? '(untagged)'} />
+            {!guided && <Row label="Current room" value={currentRoom ?? '(untagged)'} />}
             <Row label="Points / cells" value={`${measurements.length} / ${gridSummary?.cells ?? 0}`} big />
-            <Row label="Rejected" value={String(rejected)} />
-            {lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
             {filtered && (
               <Row
                 label="RSSI median (live)"
                 value={`${filtered.rssi} dBm  (±${filtered.spread}, n=${filtered.sampleCount})`}
               />
             )}
-            {latest && (
+            {/* Free-form scans need the diagnostics; a guided walk has the grid instead. */}
+            {!guided && <Row label="Rejected" value={String(rejected)} />}
+            {!guided && lastReason && <Text style={styles.reasonText}>Last rejection: {lastReason}</Text>}
+            {!guided && latest && (
               <Row
                 label="Latest point"
                 value={`(${latest.x.toFixed(1)}, ${latest.z.toFixed(1)})  ${latest.rssi} dBm`}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '../components/anim';
+import { useRefetchOnFocus } from '../components/ActiveTab';
 import { useConfirm } from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import { Banner, Button } from '../components/DebugUI';
@@ -54,6 +55,17 @@ export default function AdminScreen() {
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+  useRefetchOnFocus('admin', refresh);
+
+  const [pulling, setPulling] = useState(false);
+  const pullRefresh = useCallback(async () => {
+    setPulling(true);
+    try {
+      await refresh();
+    } finally {
+      setPulling(false);
+    }
   }, [refresh]);
 
   const confirmDelete = async (u: AdminUser) => {
@@ -108,7 +120,12 @@ export default function AdminScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={pulling} onRefresh={pullRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+        }
+      >
         {error && <Banner color={theme.danger} text={error} />}
         {notice && <Banner color={theme.success} text={notice} />}
 
