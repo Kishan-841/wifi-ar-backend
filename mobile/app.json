@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.wifiar.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA"
