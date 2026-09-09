@@ -1,11 +1,13 @@
-# WiFi AR backend on one VM: PostgreSQL + API + Caddy.
+# WiFi AR backend on the VM: PostgreSQL + API.
 #
 #   cp .env.example .env   (then edit)
 #   docker compose up -d --build
 #   docker compose exec api npm run seed:admin      (first time only)
 #
-# Only Caddy publishes a port. Postgres and the API are reachable solely on the
-# private compose network, so the database is never exposed to the internet.
+# TLS and the public hostname are handled by the host's nginx (see nginx/),
+# which proxies https://202-136-68-13.sslip.io → 127.0.0.1:PUBLIC_PORT.
+# The API is bound to localhost only and Postgres publishes nothing, so
+# neither is reachable from the internet directly.
 
 # Fixed project name: volumes and network become wifi-ar_*, never colliding
 # with another repo's deploy/ folder on the same host.
@@ -40,22 +42,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    expose:
-      - "4000"
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
     ports:
-      - "${PUBLIC_PORT:-80}:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - api
+      # localhost only: nginx is the sole public entry point
+      - "127.0.0.1:${PUBLIC_PORT:-8080}:4000"
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:

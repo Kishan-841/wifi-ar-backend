@@ -37,9 +37,7 @@ if [ "$ACTION" = "seed" ]; then
   ssh "$TARGET" "cd $REMOTE_DIR/deploy && docker compose exec api npm run seed:admin"
 fi
 
-HOST="${TARGET#*@}"
-PORT=$(ssh "$TARGET" "cd $REMOTE_DIR/deploy && grep -E '^PUBLIC_PORT=' .env | cut -d= -f2" || true)
-PORT="${PORT:-80}"
-URL="http://$HOST"; [ "$PORT" != "80" ] && URL="$URL:$PORT"
+URL=$(ssh "$TARGET" "cd $REMOTE_DIR/deploy && grep -E '^API_URL=' .env | cut -d= -f2-" || true)
+URL="${URL:-http://${TARGET#*@}:8080}"
 echo "→ health check: $URL/health"
-curl -fsS --max-time 10 "$URL/health" && echo && echo "✓ backend is up at $URL" || echo "✗ no answer yet — check 'docker compose logs -f' on the VM and the VM firewall for port $PORT"
+curl -fsS --max-time 10 "$URL/health" && echo && echo "✓ backend is up at $URL" || echo "✗ no answer yet — check 'docker compose logs -f api' on the VM, the nginx site, and DNS for $URL"

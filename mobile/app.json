@@ -2,19 +2,11 @@
   "expo": {
     "name": "WiFi AR",
     "slug": "wifi-ar",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "plugins": [
       "@reactvision/react-viro",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          }
-        }
-      ],
       "expo-font"
     ],
     "userInterfaceStyle": "light",
@@ -23,7 +15,7 @@
     },
     "android": {
       "package": "com.wifiar.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA"
