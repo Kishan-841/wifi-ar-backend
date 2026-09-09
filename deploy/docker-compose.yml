@@ -1,0 +1,57 @@
+# WiFi AR backend on one VM: PostgreSQL + API + Caddy.
+#
+#   cp .env.example .env   (then edit)
+#   docker compose up -d --build
+#   docker compose exec api npm run seed:admin      (first time only)
+#
+# Only Caddy publishes a port. Postgres and the API are reachable solely on the
+# private compose network, so the database is never exposed to the internet.
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wifiar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: wifiar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wifiar -d wifiar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://wifiar:${POSTGRES_PASSWORD}@db:5432/wifiar
+      PORT: 4000
+      # Used only by `npm run seed:admin`; the server itself ignores these.
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${PUBLIC_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

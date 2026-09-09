@@ -1,0 +1,22 @@
+# Plain HTTP on a bare IP. Caddy cannot get a public certificate without a
+# domain name, so until one exists the app talks http://VM_IP[:PORT].
+#
+# When you have a domain pointing at the VM, replace the first line with
+#     yourdomain.example {
+# and Caddy issues and renews a Let's Encrypt certificate automatically.
+# Then drop `usesCleartextTraffic` from mobile/app.json and rebuild the APK.
+
+:80 {
+	encode gzip
+
+	# Forward the client's real address so login rate-limiting is per phone,
+	# not per Caddy container.
+	reverse_proxy api:4000 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

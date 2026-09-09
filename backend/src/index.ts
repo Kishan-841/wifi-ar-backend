@@ -7,6 +7,9 @@ import { hashPassword, login, logout, me, requireAdmin, requireAuth } from './au
 
 const prisma = new PrismaClient();
 const app = express();
+// Behind Caddy (deploy/), req.ip must come from X-Forwarded-For, otherwise the
+// login rate limit keys on the proxy's address and one bad guess locks everyone.
+app.set('trust proxy', 1);
 // Scans arrive as one batched POST; a long walk is well under this cap.
 app.use(express.json({ limit: '10mb' }));
 

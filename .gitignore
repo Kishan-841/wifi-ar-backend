@@ -7,3 +7,6 @@ learning-docs/
 
 # Release artifacts (share files, don't commit binaries)
 dist/
+
+# VM secrets
+deploy/.env
