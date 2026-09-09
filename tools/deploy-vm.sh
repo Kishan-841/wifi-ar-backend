@@ -29,6 +29,10 @@ ssh "$TARGET" "cd $REMOTE_DIR/deploy && \
   docker compose up -d --build && docker compose ps"
 
 if [ "$ACTION" = "seed" ]; then
+  echo "→ waiting for the API to finish migrations"
+  ssh "$TARGET" "cd $REMOTE_DIR/deploy && for i in \$(seq 1 30); do \
+    docker compose logs api 2>/dev/null | grep -q 'backend listening' && exit 0; sleep 2; done; \
+    echo 'API did not come up in 60s'; docker compose logs api | tail -20; exit 1"
   echo "→ creating the first admin"
   ssh "$TARGET" "cd $REMOTE_DIR/deploy && docker compose exec api npm run seed:admin"
 fi
